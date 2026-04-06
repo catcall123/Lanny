@@ -56,6 +56,11 @@ public class LannyDbContextTests
         Assert.Contains("SystemObjectId", columnNames);
         Assert.Contains("SystemUptime", columnNames);
         Assert.Contains("InterfaceCount", columnNames);
+        Assert.Contains("HttpTitle", columnNames);
+        Assert.Contains("HttpHeaders", columnNames);
+        Assert.Contains("TlsCertificateSubject", columnNames);
+        Assert.Contains("TlsSubjectAlternativeNames", columnNames);
+        Assert.Contains("SshBanner", columnNames);
     }
 
     [Fact]

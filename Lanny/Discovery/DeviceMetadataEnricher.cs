@@ -34,6 +34,11 @@ public static class DeviceMetadataEnricher
         target.SystemObjectId ??= observation.SystemObjectId;
         target.SystemUptime ??= observation.SystemUptime;
         target.InterfaceCount ??= observation.InterfaceCount;
+        target.HttpTitle ??= observation.HttpTitle;
+        target.TlsCertificateSubject ??= observation.TlsCertificateSubject;
+        target.SshBanner ??= observation.SshBanner;
+        MergeHeaders(target, observation);
+        MergeSubjectAlternativeNames(target, observation);
 
         if (!string.IsNullOrWhiteSpace(observation.DiscoveryMethod) &&
             target.DiscoveryMethod?.Contains(observation.DiscoveryMethod, StringComparison.OrdinalIgnoreCase) != true)
@@ -55,5 +60,30 @@ public static class DeviceMetadataEnricher
         return currentVendor.Equals("Private", StringComparison.OrdinalIgnoreCase)
             ? candidateVendor
             : currentVendor;
+    }
+
+    private static void MergeHeaders(Device target, Device observation)
+    {
+        if (observation.HttpHeaders is null || observation.HttpHeaders.Count == 0)
+            return;
+
+        target.HttpHeaders ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (key, value) in observation.HttpHeaders)
+        {
+            target.HttpHeaders.TryAdd(key, value);
+        }
+    }
+
+    private static void MergeSubjectAlternativeNames(Device target, Device observation)
+    {
+        if (observation.TlsSubjectAlternativeNames is null || observation.TlsSubjectAlternativeNames.Count == 0)
+            return;
+
+        target.TlsSubjectAlternativeNames ??= [];
+        foreach (var subjectAlternativeName in observation.TlsSubjectAlternativeNames)
+        {
+            if (!target.TlsSubjectAlternativeNames.Contains(subjectAlternativeName, StringComparer.OrdinalIgnoreCase))
+                target.TlsSubjectAlternativeNames.Add(subjectAlternativeName);
+        }
     }
 }

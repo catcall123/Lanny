@@ -58,6 +58,14 @@ public class DeviceEndpointsTests
             SystemObjectId = "1.3.6.1.4.1.9.1.1208",
             SystemUptime = 123456,
             InterfaceCount = 24,
+            HttpTitle = "Router Admin",
+            HttpHeaders = new Dictionary<string, string>
+            {
+                ["server"] = "nginx",
+            },
+            TlsCertificateSubject = "CN=router.local",
+            TlsSubjectAlternativeNames = ["router.local", "router"],
+            SshBanner = "SSH-2.0-OpenSSH_9.6",
             DiscoveryMethod = "ARP",
             LastSeen = new DateTimeOffset(2026, 4, 6, 12, 0, 0, TimeSpan.Zero),
         });
@@ -73,11 +81,21 @@ public class DeviceEndpointsTests
         Assert.Equal("1.3.6.1.4.1.9.1.1208", device.SystemObjectId);
         Assert.Equal(123456, device.SystemUptime);
         Assert.Equal(24, device.InterfaceCount);
+        Assert.Equal("Router Admin", device.HttpTitle);
+        Assert.Equal("nginx", device.HttpHeaders!["server"]);
+        Assert.Equal("CN=router.local", device.TlsCertificateSubject);
+        Assert.Equal(["router.local", "router"], device.TlsSubjectAlternativeNames);
+        Assert.Equal("SSH-2.0-OpenSSH_9.6", device.SshBanner);
         Assert.Contains("\"systemName\":\"switch-core\"", json);
         Assert.Contains("\"systemDescription\":\"Cisco IOS XE\"", json);
         Assert.Contains("\"systemObjectId\":\"1.3.6.1.4.1.9.1.1208\"", json);
         Assert.Contains("\"systemUptime\":123456", json);
         Assert.Contains("\"interfaceCount\":24", json);
+        Assert.Contains("\"httpTitle\":\"Router Admin\"", json);
+        Assert.Contains("\"httpHeaders\":{\"server\":\"nginx\"}", json);
+        Assert.Contains("\"tlsCertificateSubject\":\"CN=router.local\"", json);
+        Assert.Contains("\"tlsSubjectAlternativeNames\":[\"router.local\",\"router\"]", json);
+        Assert.Contains("\"sshBanner\":\"SSH-2.0-OpenSSH_9.6\"", json);
     }
 
     [Fact]
@@ -101,6 +119,11 @@ public class DeviceEndpointsTests
         Assert.DoesNotContain("systemObjectId", json, StringComparison.Ordinal);
         Assert.DoesNotContain("systemUptime", json, StringComparison.Ordinal);
         Assert.DoesNotContain("interfaceCount", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("httpTitle", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("httpHeaders", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("tlsCertificateSubject", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("tlsSubjectAlternativeNames", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("sshBanner", json, StringComparison.Ordinal);
     }
 
     [Fact]

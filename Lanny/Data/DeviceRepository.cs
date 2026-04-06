@@ -60,6 +60,28 @@ public class DeviceRepository
             existing.SystemObjectId = device.SystemObjectId ?? existing.SystemObjectId;
             existing.SystemUptime = device.SystemUptime ?? existing.SystemUptime;
             existing.InterfaceCount = device.InterfaceCount ?? existing.InterfaceCount;
+            existing.HttpTitle = device.HttpTitle ?? existing.HttpTitle;
+            existing.TlsCertificateSubject = device.TlsCertificateSubject ?? existing.TlsCertificateSubject;
+            existing.SshBanner = device.SshBanner ?? existing.SshBanner;
+            if (device.HttpHeaders is not null)
+            {
+                existing.HttpHeaders ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var (key, value) in device.HttpHeaders)
+                {
+                    existing.HttpHeaders.TryAdd(key, value);
+                }
+            }
+
+            if (device.TlsSubjectAlternativeNames is not null)
+            {
+                existing.TlsSubjectAlternativeNames ??= [];
+                foreach (var subjectAlternativeName in device.TlsSubjectAlternativeNames)
+                {
+                    if (!existing.TlsSubjectAlternativeNames.Contains(subjectAlternativeName, StringComparer.OrdinalIgnoreCase))
+                        existing.TlsSubjectAlternativeNames.Add(subjectAlternativeName);
+                }
+            }
+
             existing.LastSeen = device.LastSeen;
             existing.IsOnline = true;
             if (!string.IsNullOrEmpty(device.DiscoveryMethod) &&

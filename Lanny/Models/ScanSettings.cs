@@ -10,6 +10,9 @@ public class ScanSettings
     public bool EnableSnmpInspection { get; set; } = true;
     public string SnmpCommunity { get; set; } = "public";
     public int SnmpTimeoutMs { get; set; } = 1000;
+    public bool EnableServiceFingerprinting { get; set; }
+    public int FingerprintTimeoutMs { get; set; } = 1000;
+    public int FingerprintMaxConcurrency { get; set; } = 4;
     public int OfflineThresholdMinutes { get; set; } = 5;
     public int OfflineDeviceRetentionHours { get; set; } = 168;
     public int StalledScanWarningMinutes { get; set; } = 10;

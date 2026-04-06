@@ -68,9 +68,12 @@ function render() {
                 (d.ipAddress || "").toLowerCase().includes(q) ||
                 (d.macAddress || "").toLowerCase().includes(q) ||
                 (d.hostname || "").toLowerCase().includes(q) ||
-                    (d.vendor || "").toLowerCase().includes(q) ||
-                    (d.systemName || "").toLowerCase().includes(q) ||
-                    (d.systemDescription || "").toLowerCase().includes(q)
+                (d.vendor || "").toLowerCase().includes(q) ||
+                (d.systemName || "").toLowerCase().includes(q) ||
+                (d.systemDescription || "").toLowerCase().includes(q) ||
+                (d.httpTitle || "").toLowerCase().includes(q) ||
+                (d.tlsCertificateSubject || "").toLowerCase().includes(q) ||
+                (d.sshBanner || "").toLowerCase().includes(q)
             );
         })
         .sort((a, b) => {
@@ -160,6 +163,20 @@ function renderOptionalDetailRow(label, value) {
     `;
 }
 
+function renderOptionalHeaderRows(headers) {
+    if (!headers || Object.keys(headers).length === 0) return "";
+    const formattedHeaders = Object.entries(headers)
+        .map(([key, value]) => `${key}: ${value}`)
+        .join("\n");
+
+    return renderOptionalDetailRow("HTTP Headers", formattedHeaders);
+}
+
+function formatTlsSans(subjectAlternativeNames) {
+    if (!subjectAlternativeNames || subjectAlternativeNames.length === 0) return "";
+    return subjectAlternativeNames.join(", ");
+}
+
 // --- Modal ---
 function showDeviceModal(mac) {
     const d = devices.find(x => x.macAddress === mac);
@@ -196,6 +213,11 @@ function showDeviceModal(mac) {
         ${renderOptionalDetailRow("SNMP Object ID", d.systemObjectId)}
         ${renderOptionalDetailRow("SNMP Uptime", formatUptime(d.systemUptime))}
         ${renderOptionalDetailRow("SNMP Interfaces", d.interfaceCount)}
+        ${renderOptionalDetailRow("HTTP Title", d.httpTitle)}
+        ${renderOptionalHeaderRows(d.httpHeaders)}
+        ${renderOptionalDetailRow("TLS Subject", d.tlsCertificateSubject)}
+        ${renderOptionalDetailRow("TLS SANs", formatTlsSans(d.tlsSubjectAlternativeNames))}
+        ${renderOptionalDetailRow("SSH Banner", d.sshBanner)}
         <div class="detail-row">
             <span class="detail-label">Open Ports</span>
             <span class="detail-value">${d.openPorts && d.openPorts.length ? d.openPorts.join(", ") : "—"}</span>

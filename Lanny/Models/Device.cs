@@ -25,6 +25,21 @@ public class Device
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public int? InterfaceCount { get; set; }
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? HttpTitle { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public Dictionary<string, string>? HttpHeaders { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? TlsCertificateSubject { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<string>? TlsSubjectAlternativeNames { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? SshBanner { get; set; }
+
     public string? DiscoveryMethod { get; set; }
     public List<int> OpenPorts { get; set; } = [];
     public DateTimeOffset FirstSeen { get; set; }

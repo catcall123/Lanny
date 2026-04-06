@@ -78,4 +78,39 @@ public class DeviceMetadataEnricherTests
         Assert.Equal(24, device.InterfaceCount);
         Assert.Equal("ARP,SNMP", device.DiscoveryMethod);
     }
+
+    [Fact]
+    public void MergeObservation_WhenServiceFingerprintMetadataExists_PreservesHigherConfidenceHostnameAndAddsProtocolMetadata()
+    {
+        var device = new Device
+        {
+            MacAddress = "AA:BB:CC:DD:EE:10",
+            IpAddress = "192.168.1.15",
+            Hostname = "printer.local",
+            DiscoveryMethod = "mDNS",
+        };
+
+        DeviceMetadataEnricher.MergeObservation(device, new Device
+        {
+            IpAddress = "192.168.1.15",
+            Hostname = "wrong-http-hostname",
+            HttpTitle = "Printer Console",
+            HttpHeaders = new Dictionary<string, string>
+            {
+                ["server"] = "nginx",
+            },
+            TlsCertificateSubject = "CN=printer.local",
+            TlsSubjectAlternativeNames = ["printer.local"],
+            SshBanner = "SSH-2.0-OpenSSH_9.6",
+            DiscoveryMethod = "HTTP,TLS,SSH",
+        });
+
+        Assert.Equal("printer.local", device.Hostname);
+        Assert.Equal("Printer Console", device.HttpTitle);
+        Assert.Equal("nginx", device.HttpHeaders!["server"]);
+        Assert.Equal("CN=printer.local", device.TlsCertificateSubject);
+        Assert.Equal(["printer.local"], device.TlsSubjectAlternativeNames);
+        Assert.Equal("SSH-2.0-OpenSSH_9.6", device.SshBanner);
+        Assert.Equal("mDNS,HTTP,TLS,SSH", device.DiscoveryMethod);
+    }
 }

@@ -39,6 +39,10 @@ builder.Services.AddSingleton<IDiscoveryService, ArpScanner>();
 builder.Services.AddSingleton<IDiscoveryService, PingScanner>();
 builder.Services.AddSingleton<IDiscoveryService, MdnsListener>();
 builder.Services.AddSingleton<IDiscoveryService, SnmpScanner>();
+builder.Services.AddSingleton<IServiceFingerprintProbe, HttpFingerprintProbe>();
+builder.Services.AddSingleton<IServiceFingerprintProbe, TlsCertificateProbe>();
+builder.Services.AddSingleton<IServiceFingerprintProbe, SshBannerProbe>();
+builder.Services.AddSingleton<IDiscoveryService, ServiceFingerprintScanner>();
 builder.Services.AddHealthChecks().AddCheck<ScanLoopHealthCheck>("scan_loop");
 
 // Worker

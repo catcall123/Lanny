@@ -48,5 +48,24 @@ public static class LannyDbSchemaUpdater
 
         if (!existingColumns.Contains("InterfaceCount"))
             await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"Devices\" ADD COLUMN \"InterfaceCount\" INTEGER NULL;", cancellationToken);
+
+        if (!existingColumns.Contains("HttpTitle"))
+            await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"Devices\" ADD COLUMN \"HttpTitle\" TEXT NULL;", cancellationToken);
+
+        if (!existingColumns.Contains("HttpHeaders"))
+            await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"Devices\" ADD COLUMN \"HttpHeaders\" TEXT NULL;", cancellationToken);
+
+        if (!existingColumns.Contains("TlsCertificateSubject"))
+            await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"Devices\" ADD COLUMN \"TlsCertificateSubject\" TEXT NULL;", cancellationToken);
+
+        if (!existingColumns.Contains("TlsSubjectAlternativeNames"))
+        {
+            await db.Database.ExecuteSqlRawAsync(
+                "ALTER TABLE \"Devices\" ADD COLUMN \"TlsSubjectAlternativeNames\" TEXT NULL;",
+                cancellationToken);
+        }
+
+        if (!existingColumns.Contains("SshBanner"))
+            await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"Devices\" ADD COLUMN \"SshBanner\" TEXT NULL;", cancellationToken);
     }
 }
