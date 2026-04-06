@@ -3,3 +3,4 @@
 *.db-wal
 bin/
 obj/
+TestResults/

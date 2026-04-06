@@ -1,0 +1,130 @@
+using System.Net;
+using System.Net.Http.Json;
+using Lanny.Api;
+using Lanny.Data;
+using Lanny.Models;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Data.Sqlite;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+
+namespace Lanny.Tests.Api;
+
+public class DeviceEndpointsTests
+{
+    [Fact]
+    public async Task GetDevices_ReturnsAllTrackedDevices()
+    {
+        await using var host = await EndpointTestHost.CreateAsync();
+
+        await host.Repository.UpsertAsync(new Device
+        {
+            MacAddress = "AA:BB:CC:DD:EE:01",
+            IpAddress = "192.168.1.10",
+            DiscoveryMethod = "ARP",
+            LastSeen = new DateTimeOffset(2026, 4, 6, 12, 0, 0, TimeSpan.Zero),
+        });
+        await host.Repository.UpsertAsync(new Device
+        {
+            MacAddress = "AA:BB:CC:DD:EE:02",
+            IpAddress = "192.168.1.11",
+            DiscoveryMethod = "ARP",
+            LastSeen = new DateTimeOffset(2026, 4, 6, 12, 1, 0, TimeSpan.Zero),
+        });
+
+        var devices = await host.Client.GetFromJsonAsync<List<Device>>("/api/devices/");
+
+        Assert.NotNull(devices);
+        Assert.Equal(2, devices.Count);
+        Assert.Contains(devices, device => device.MacAddress == "AA:BB:CC:DD:EE:01");
+        Assert.Contains(devices, device => device.MacAddress == "AA:BB:CC:DD:EE:02");
+    }
+
+    [Fact]
+    public async Task GetDevice_WithKnownMac_ReturnsMatchingDeviceCaseInsensitively()
+    {
+        await using var host = await EndpointTestHost.CreateAsync();
+
+        await host.Repository.UpsertAsync(new Device
+        {
+            MacAddress = "AA:BB:CC:DD:EE:FF",
+            IpAddress = "192.168.1.25",
+            Hostname = "media-center",
+            DiscoveryMethod = "ARP",
+            LastSeen = new DateTimeOffset(2026, 4, 6, 12, 0, 0, TimeSpan.Zero),
+        });
+
+        var device = await host.Client.GetFromJsonAsync<Device>("/api/devices/aa:bb:cc:dd:ee:ff");
+
+        Assert.NotNull(device);
+        Assert.Equal("AA:BB:CC:DD:EE:FF", device.MacAddress);
+        Assert.Equal("media-center", device.Hostname);
+    }
+
+    [Fact]
+    public async Task GetDevice_WithUnknownMac_ReturnsNotFound()
+    {
+        await using var host = await EndpointTestHost.CreateAsync();
+
+        var response = await host.Client.GetAsync("/api/devices/00:00:00:00:00:00");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    private sealed class EndpointTestHost : IAsyncDisposable
+    {
+        private readonly SqliteConnection _connection;
+
+        private EndpointTestHost(SqliteConnection connection, WebApplication app)
+        {
+            _connection = connection;
+            App = app;
+            Client = app.GetTestClient();
+        }
+
+        public WebApplication App { get; }
+
+        public HttpClient Client { get; }
+
+        public DeviceRepository Repository => App.Services.GetRequiredService<DeviceRepository>();
+
+        public static async Task<EndpointTestHost> CreateAsync()
+        {
+            var connection = new SqliteConnection("Data Source=:memory:");
+            await connection.OpenAsync();
+
+            var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+            {
+                EnvironmentName = Environments.Development,
+            });
+            builder.WebHost.UseTestServer();
+            builder.Services.AddLogging();
+            builder.Services.AddDbContext<LannyDbContext>(options => options.UseSqlite(connection));
+            builder.Services.AddSingleton<DeviceRepository>();
+
+            var app = builder.Build();
+
+            await using (var scope = app.Services.CreateAsyncScope())
+            {
+                var db = scope.ServiceProvider.GetRequiredService<LannyDbContext>();
+                await db.Database.EnsureCreatedAsync();
+            }
+
+            app.MapDeviceApi();
+            await app.StartAsync();
+
+            return new EndpointTestHost(connection, app);
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            Client.Dispose();
+            await App.StopAsync();
+            await App.DisposeAsync();
+            await _connection.DisposeAsync();
+        }
+    }
+}
