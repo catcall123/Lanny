@@ -195,7 +195,7 @@ public class DeviceRepositoryTests
     public async Task UpsertAsync_WhenDatabaseIsTemporarilyLocked_RetriesUntilSaveSucceeds()
     {
         var databasePath = Path.Combine(Path.GetTempPath(), $"lanny-tests-{Guid.NewGuid():N}.db");
-        var connectionString = $"Data Source={databasePath}";
+        var connectionString = $"Data Source={databasePath};Default Timeout=1";
 
         try
         {
