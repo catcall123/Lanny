@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gh issue create --title 'Harden service for unattended, unlimited runtime' --body ':*)"
+    ]
+  }
+}
