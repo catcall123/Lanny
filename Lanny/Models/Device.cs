@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Lanny.Models;
 
 public class Device
@@ -8,6 +10,15 @@ public class Device
     public string? IpAddress { get; set; }
     public string? Hostname { get; set; }
     public string? Vendor { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? SystemName { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? SystemDescription { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? SystemObjectId { get; set; }
+
     public string? DiscoveryMethod { get; set; }
     public List<int> OpenPorts { get; set; } = [];
     public DateTimeOffset FirstSeen { get; set; }

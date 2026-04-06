@@ -55,6 +55,9 @@ public class DeviceRepository
             existing.IpAddress = device.IpAddress ?? existing.IpAddress;
             existing.Hostname = device.Hostname ?? existing.Hostname;
             existing.Vendor = device.Vendor ?? existing.Vendor;
+            existing.SystemName = device.SystemName ?? existing.SystemName;
+            existing.SystemDescription = device.SystemDescription ?? existing.SystemDescription;
+            existing.SystemObjectId = device.SystemObjectId ?? existing.SystemObjectId;
             existing.LastSeen = device.LastSeen;
             existing.IsOnline = true;
             if (!string.IsNullOrEmpty(device.DiscoveryMethod) &&

@@ -53,15 +53,46 @@ public class DeviceEndpointsTests
             MacAddress = "AA:BB:CC:DD:EE:FF",
             IpAddress = "192.168.1.25",
             Hostname = "media-center",
+            SystemName = "switch-core",
+            SystemDescription = "Cisco IOS XE",
+            SystemObjectId = "1.3.6.1.4.1.9.1.1208",
             DiscoveryMethod = "ARP",
             LastSeen = new DateTimeOffset(2026, 4, 6, 12, 0, 0, TimeSpan.Zero),
         });
 
+        var json = await host.Client.GetStringAsync("/api/devices/aa:bb:cc:dd:ee:ff");
         var device = await host.Client.GetFromJsonAsync<Device>("/api/devices/aa:bb:cc:dd:ee:ff");
 
         Assert.NotNull(device);
         Assert.Equal("AA:BB:CC:DD:EE:FF", device.MacAddress);
         Assert.Equal("media-center", device.Hostname);
+        Assert.Equal("switch-core", device.SystemName);
+        Assert.Equal("Cisco IOS XE", device.SystemDescription);
+        Assert.Equal("1.3.6.1.4.1.9.1.1208", device.SystemObjectId);
+        Assert.Contains("\"systemName\":\"switch-core\"", json);
+        Assert.Contains("\"systemDescription\":\"Cisco IOS XE\"", json);
+        Assert.Contains("\"systemObjectId\":\"1.3.6.1.4.1.9.1.1208\"", json);
+    }
+
+    [Fact]
+    public async Task GetDevice_WhenSnmpMetadataIsUnavailable_OmitsSnmpFieldsFromJson()
+    {
+        await using var host = await EndpointTestHost.CreateAsync();
+
+        await host.Repository.UpsertAsync(new Device
+        {
+            MacAddress = "AA:BB:CC:DD:EE:11",
+            IpAddress = "192.168.1.20",
+            Hostname = "printer",
+            DiscoveryMethod = "ARP",
+            LastSeen = new DateTimeOffset(2026, 4, 6, 12, 0, 0, TimeSpan.Zero),
+        });
+
+        var json = await host.Client.GetStringAsync("/api/devices/aa:bb:cc:dd:ee:11");
+
+        Assert.DoesNotContain("systemName", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("systemDescription", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("systemObjectId", json, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -110,7 +141,7 @@ public class DeviceEndpointsTests
             await using (var scope = app.Services.CreateAsyncScope())
             {
                 var db = scope.ServiceProvider.GetRequiredService<LannyDbContext>();
-                await db.Database.EnsureCreatedAsync();
+                await LannyDbSchemaUpdater.EnsureCreatedAndUpdatedAsync(db);
             }
 
             app.MapDeviceApi();

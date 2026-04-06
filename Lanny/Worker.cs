@@ -13,6 +13,7 @@ public class Worker : BackgroundService
     private readonly ILogger<Worker> _logger;
     private readonly DeviceRepository _repo;
     private readonly IEnumerable<IDiscoveryService> _scanners;
+    private readonly ISnmpMetadataProvider _snmpMetadataProvider;
     private readonly ScanLoopMonitor _scanLoopMonitor;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ScanSettings _settings;
@@ -21,6 +22,7 @@ public class Worker : BackgroundService
         ILogger<Worker> logger,
         DeviceRepository repo,
         IEnumerable<IDiscoveryService> scanners,
+        ISnmpMetadataProvider snmpMetadataProvider,
         ScanLoopMonitor scanLoopMonitor,
         IServiceScopeFactory scopeFactory,
         IOptions<ScanSettings> settings)
@@ -28,6 +30,7 @@ public class Worker : BackgroundService
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _repo = repo ?? throw new ArgumentNullException(nameof(repo));
         _scanners = scanners ?? throw new ArgumentNullException(nameof(scanners));
+        _snmpMetadataProvider = snmpMetadataProvider ?? throw new ArgumentNullException(nameof(snmpMetadataProvider));
         _scanLoopMonitor = scanLoopMonitor ?? throw new ArgumentNullException(nameof(scanLoopMonitor));
         _scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
         _settings = settings?.Value ?? throw new ArgumentNullException(nameof(settings));
@@ -96,6 +99,11 @@ public class Worker : BackgroundService
         {
             stoppingToken.ThrowIfCancellationRequested();
             DeviceMetadataEnricher.MergeRelatedObservations(device, withoutMac);
+
+            var snmpObservation = await _snmpMetadataProvider.TryGetObservationAsync(device, stoppingToken);
+            if (snmpObservation is not null)
+                DeviceMetadataEnricher.MergeObservation(device, snmpObservation);
+
             await _repo.UpsertAsync(device, stoppingToken);
         }
 

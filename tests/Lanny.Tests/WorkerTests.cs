@@ -133,6 +133,59 @@ public class WorkerTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_WhenSnmpObservationIsAvailable_MergesSnmpMetadataIntoTrackedDevice()
+    {
+        var hubContext = new RecordingHubContext();
+        await using var host = await SqliteTestHost.CreateAsync(services =>
+        {
+            services.AddSingleton<IHubContext<DeviceHub>>(hubContext);
+        });
+
+        var repository = host.Services.GetRequiredService<DeviceRepository>();
+        var scanners = new IDiscoveryService[]
+        {
+            new StaticDiscoveryService("ARP", [
+                new Device
+                {
+                    MacAddress = "AA:BB:CC:DD:EE:01",
+                    IpAddress = "192.168.1.10",
+                    DiscoveryMethod = "ARP",
+                    LastSeen = DateTimeOffset.UtcNow,
+                },
+            ]),
+        };
+        var snmpProvider = new StubSnmpMetadataProvider(new Device
+        {
+            IpAddress = "192.168.1.10",
+            Hostname = "core-switch",
+            SystemName = "core-switch",
+            SystemDescription = "Cisco IOS XE",
+            SystemObjectId = "1.3.6.1.4.1.9.1.1208",
+            DiscoveryMethod = "SNMP",
+            LastSeen = DateTimeOffset.UtcNow,
+        });
+
+        using var cts = new CancellationTokenSource();
+        hubContext.OnSend = () => cts.Cancel();
+
+        var worker = CreateWorker(host, repository, scanners, new ScanSettings
+        {
+            ScanIntervalSeconds = 60,
+            OfflineThresholdMinutes = 5,
+        }, snmpProvider);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => worker.RunUntilCanceledAsync(cts.Token));
+
+        var device = repository.Get("AA:BB:CC:DD:EE:01");
+        Assert.NotNull(device);
+        Assert.Equal("core-switch", device.Hostname);
+        Assert.Equal("core-switch", device.SystemName);
+        Assert.Equal("Cisco IOS XE", device.SystemDescription);
+        Assert.Equal("1.3.6.1.4.1.9.1.1208", device.SystemObjectId);
+        Assert.Equal("ARP,SNMP", device.DiscoveryMethod);
+    }
+
+    [Fact]
     public async Task ExecuteAsync_WhenCancellationOccursDuringScan_StopsWithoutBroadcasting()
     {
         var hubContext = new RecordingHubContext();
@@ -198,12 +251,14 @@ public class WorkerTests
         SqliteTestHost host,
         DeviceRepository repository,
         IEnumerable<IDiscoveryService> scanners,
-        ScanSettings settings)
+        ScanSettings settings,
+        ISnmpMetadataProvider? snmpMetadataProvider = null)
     {
         return new TestWorker(
             NullLogger<Worker>.Instance,
             repository,
             scanners,
+            snmpMetadataProvider ?? new StubSnmpMetadataProvider(null),
             new ScanLoopMonitor(),
             host.Services.GetRequiredService<IServiceScopeFactory>(),
             Options.Create(settings));
@@ -215,10 +270,11 @@ public class WorkerTests
             Microsoft.Extensions.Logging.ILogger<Worker> logger,
             DeviceRepository repository,
             IEnumerable<IDiscoveryService> scanners,
+            ISnmpMetadataProvider snmpMetadataProvider,
             ScanLoopMonitor scanLoopMonitor,
             IServiceScopeFactory scopeFactory,
             IOptions<ScanSettings> settings)
-            : base(logger, repository, scanners, scanLoopMonitor, scopeFactory, settings)
+            : base(logger, repository, scanners, snmpMetadataProvider, scanLoopMonitor, scopeFactory, settings)
         {
         }
 
@@ -293,6 +349,21 @@ public class WorkerTests
 
         public Task<IReadOnlyList<Device>> ScanAsync(CancellationToken ct) =>
             throw new InvalidOperationException("boom");
+    }
+
+    private sealed class StubSnmpMetadataProvider : ISnmpMetadataProvider
+    {
+        private readonly Device? _observation;
+
+        public StubSnmpMetadataProvider(Device? observation)
+        {
+            _observation = observation;
+        }
+
+        public Task<Device?> TryGetObservationAsync(Device device, CancellationToken cancellationToken)
+        {
+            return Task.FromResult(_observation?.IpAddress == device.IpAddress ? _observation : null);
+        }
     }
 
     private sealed class RecordingHubContext : IHubContext<DeviceHub>

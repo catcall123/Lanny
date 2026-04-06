@@ -57,7 +57,7 @@ internal sealed class SqliteTestHost : IAsyncDisposable
 
         await using var scope = provider.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<LannyDbContext>();
-        await db.Database.EnsureCreatedAsync();
+        await LannyDbSchemaUpdater.EnsureCreatedAndUpdatedAsync(db);
 
         return new SqliteTestHost(connection, provider);
     }

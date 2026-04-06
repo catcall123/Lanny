@@ -12,6 +12,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Configuration
 builder.Services.Configure<ScanSettings>(builder.Configuration.GetSection("ScanSettings"));
+builder.Services.Configure<SnmpSettings>(builder.Configuration.GetSection("Snmp"));
 builder.Services.Configure<HostOptions>(options => options.ShutdownTimeout = TimeSpan.FromSeconds(10));
 
 // Database
@@ -24,6 +25,8 @@ builder.Services.AddSingleton<ScanLoopMonitor>();
 builder.Services.AddSingleton<IReverseDnsLookup, ReverseDnsLookup>();
 builder.Services.AddSingleton<INetBiosNameService, NetBiosNameService>();
 builder.Services.AddSingleton<IHostNameResolver, HostNameResolver>();
+builder.Services.AddSingleton<ISnmpClient, SharpSnmpClient>();
+builder.Services.AddSingleton<ISnmpMetadataProvider, SnmpMetadataProvider>();
 builder.Services.AddSingleton<IDiscoveryService, ArpScanner>();
 builder.Services.AddSingleton<IDiscoveryService, PingScanner>();
 builder.Services.AddSingleton<IDiscoveryService, MdnsListener>();
@@ -41,7 +44,7 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<LannyDbContext>();
-    await db.Database.EnsureCreatedAsync();
+    await LannyDbSchemaUpdater.EnsureCreatedAndUpdatedAsync(db);
 }
 
 // Middleware

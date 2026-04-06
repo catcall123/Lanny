@@ -29,6 +29,9 @@ public static class DeviceMetadataEnricher
         target.Hostname ??= observation.Hostname;
         target.IpAddress ??= observation.IpAddress;
         target.Vendor = SelectPreferredVendor(target.Vendor, observation.Vendor);
+        target.SystemName ??= observation.SystemName;
+        target.SystemDescription ??= observation.SystemDescription;
+        target.SystemObjectId ??= observation.SystemObjectId;
 
         if (!string.IsNullOrWhiteSpace(observation.DiscoveryMethod) &&
             target.DiscoveryMethod?.Contains(observation.DiscoveryMethod, StringComparison.OrdinalIgnoreCase) != true)
