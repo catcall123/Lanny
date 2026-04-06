@@ -62,7 +62,7 @@ public class PingScanner : IDiscoveryService
             if (d is not null) devices.Add(d);
         }
 
-        _logger.LogInformation("Ping sweep found {Count} responsive hosts", devices.Count);
+        _logger.LogDebug("Ping sweep found {Count} responsive hosts", devices.Count);
         return devices;
     }
 

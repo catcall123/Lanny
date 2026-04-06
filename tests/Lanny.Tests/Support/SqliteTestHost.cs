@@ -22,12 +22,36 @@ internal sealed class SqliteTestHost : IAsyncDisposable
         var connection = new SqliteConnection("Data Source=:memory:");
         await connection.OpenAsync();
 
+        return await CreateAsync(connection, services =>
+        {
+            services.AddDbContext<LannyDbContext>(options => options.UseSqlite(connection));
+            configureServices?.Invoke(services);
+        });
+    }
+
+    public static async Task<SqliteTestHost> CreateFileBackedAsync(string connectionString, Action<IServiceCollection>? configureServices = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+
+        var connection = new SqliteConnection(connectionString);
+        await connection.OpenAsync();
+
+        return await CreateAsync(connection, services =>
+        {
+            services.AddDbContext<LannyDbContext>(options => options.UseSqlite(connectionString));
+            configureServices?.Invoke(services);
+        });
+    }
+
+    private static async Task<SqliteTestHost> CreateAsync(SqliteConnection connection, Action<IServiceCollection> configureServices)
+    {
+        ArgumentNullException.ThrowIfNull(connection);
+        ArgumentNullException.ThrowIfNull(configureServices);
+
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddDbContext<LannyDbContext>(options => options.UseSqlite(connection));
         services.AddSingleton<DeviceRepository>();
-
-        configureServices?.Invoke(services);
+        configureServices(services);
 
         var provider = services.BuildServiceProvider();
 

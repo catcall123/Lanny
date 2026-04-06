@@ -4,12 +4,15 @@ using Lanny.Data;
 using Lanny.Discovery;
 using Lanny.Hubs;
 using Lanny.Models;
+using Lanny.Runtime;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Configuration
 builder.Services.Configure<ScanSettings>(builder.Configuration.GetSection("ScanSettings"));
+builder.Services.Configure<HostOptions>(options => options.ShutdownTimeout = TimeSpan.FromSeconds(10));
 
 // Database
 builder.Services.AddDbContext<LannyDbContext>(options =>
@@ -17,12 +20,14 @@ builder.Services.AddDbContext<LannyDbContext>(options =>
 
 // Core services
 builder.Services.AddSingleton<DeviceRepository>();
+builder.Services.AddSingleton<ScanLoopMonitor>();
 builder.Services.AddSingleton<IReverseDnsLookup, ReverseDnsLookup>();
 builder.Services.AddSingleton<INetBiosNameService, NetBiosNameService>();
 builder.Services.AddSingleton<IHostNameResolver, HostNameResolver>();
 builder.Services.AddSingleton<IDiscoveryService, ArpScanner>();
 builder.Services.AddSingleton<IDiscoveryService, PingScanner>();
 builder.Services.AddSingleton<IDiscoveryService, MdnsListener>();
+builder.Services.AddHealthChecks().AddCheck<ScanLoopHealthCheck>("scan_loop");
 
 // Worker
 builder.Services.AddHostedService<Worker>();
@@ -45,6 +50,7 @@ app.UseStaticFiles();
 
 // Endpoints
 app.MapDeviceApi();
+app.MapHealthChecks("/healthz");
 app.MapHub<DeviceHub>("/hubs/devices");
 
 app.Run();

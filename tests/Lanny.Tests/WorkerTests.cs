@@ -2,6 +2,7 @@ using Lanny.Data;
 using Lanny.Discovery;
 using Lanny.Hubs;
 using Lanny.Models;
+using Lanny.Runtime;
 using Lanny.Tests.Support;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
@@ -131,6 +132,68 @@ public class WorkerTests
         Assert.Single(hubContext.Invocations);
     }
 
+    [Fact]
+    public async Task ExecuteAsync_WhenCancellationOccursDuringScan_StopsWithoutBroadcasting()
+    {
+        var hubContext = new RecordingHubContext();
+        await using var host = await SqliteTestHost.CreateAsync(services =>
+        {
+            services.AddSingleton<IHubContext<DeviceHub>>(hubContext);
+        });
+
+        var repository = host.Services.GetRequiredService<DeviceRepository>();
+        var scanner = new BlockingDiscoveryService("ARP");
+        var worker = CreateWorker(host, repository, [scanner], new ScanSettings
+        {
+            ScanIntervalSeconds = 60,
+            OfflineThresholdMinutes = 5,
+        });
+
+        using var cts = new CancellationTokenSource();
+        var runTask = worker.RunUntilCanceledAsync(cts.Token);
+        await scanner.WaitUntilStartedAsync();
+        cts.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => runTask);
+        Assert.Empty(hubContext.Invocations);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenBroadcastFails_ContinuesToNextCycle()
+    {
+        var hubContext = new FlakyHubContext(failuresBeforeSuccess: 1);
+        await using var host = await SqliteTestHost.CreateAsync(services =>
+        {
+            services.AddSingleton<IHubContext<DeviceHub>>(hubContext);
+        });
+
+        var repository = host.Services.GetRequiredService<DeviceRepository>();
+        var scanner = new CountingStaticDiscoveryService("ARP", [
+            new Device
+            {
+                MacAddress = "AA:BB:CC:DD:EE:01",
+                IpAddress = "192.168.1.10",
+                DiscoveryMethod = "ARP",
+                LastSeen = DateTimeOffset.UtcNow,
+            },
+        ]);
+
+        using var cts = new CancellationTokenSource();
+        hubContext.OnSuccessfulSend = () => cts.Cancel();
+
+        var worker = CreateWorker(host, repository, [scanner], new ScanSettings
+        {
+            ScanIntervalSeconds = 0,
+            OfflineThresholdMinutes = 5,
+        });
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => worker.RunUntilCanceledAsync(cts.Token));
+
+        Assert.Equal(2, scanner.CallCount);
+        Assert.Equal(2, hubContext.SendAttemptCount);
+        Assert.Single(hubContext.Invocations);
+    }
+
     private static TestWorker CreateWorker(
         SqliteTestHost host,
         DeviceRepository repository,
@@ -141,6 +204,7 @@ public class WorkerTests
             NullLogger<Worker>.Instance,
             repository,
             scanners,
+            new ScanLoopMonitor(),
             host.Services.GetRequiredService<IServiceScopeFactory>(),
             Options.Create(settings));
     }
@@ -151,9 +215,10 @@ public class WorkerTests
             Microsoft.Extensions.Logging.ILogger<Worker> logger,
             DeviceRepository repository,
             IEnumerable<IDiscoveryService> scanners,
+            ScanLoopMonitor scanLoopMonitor,
             IServiceScopeFactory scopeFactory,
             IOptions<ScanSettings> settings)
-            : base(logger, repository, scanners, scopeFactory, settings)
+            : base(logger, repository, scanners, scanLoopMonitor, scopeFactory, settings)
         {
         }
 
@@ -173,6 +238,48 @@ public class WorkerTests
         public string Name { get; }
 
         public Task<IReadOnlyList<Device>> ScanAsync(CancellationToken ct) => Task.FromResult(_devices);
+    }
+
+    private sealed class CountingStaticDiscoveryService : IDiscoveryService
+    {
+        private readonly IReadOnlyList<Device> _devices;
+
+        public CountingStaticDiscoveryService(string name, IReadOnlyList<Device> devices)
+        {
+            Name = name;
+            _devices = devices;
+        }
+
+        public int CallCount { get; private set; }
+
+        public string Name { get; }
+
+        public Task<IReadOnlyList<Device>> ScanAsync(CancellationToken ct)
+        {
+            CallCount++;
+            return Task.FromResult(_devices);
+        }
+    }
+
+    private sealed class BlockingDiscoveryService : IDiscoveryService
+    {
+        private readonly TaskCompletionSource _started = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public BlockingDiscoveryService(string name)
+        {
+            Name = name;
+        }
+
+        public string Name { get; }
+
+        public Task WaitUntilStartedAsync() => _started.Task;
+
+        public async Task<IReadOnlyList<Device>> ScanAsync(CancellationToken ct)
+        {
+            _started.TrySetResult();
+            await Task.Delay(Timeout.InfiniteTimeSpan, ct);
+            return [];
+        }
     }
 
     private sealed class ThrowingDiscoveryService : IDiscoveryService
@@ -205,6 +312,32 @@ public class WorkerTests
         }
 
         public List<HubInvocation> Invocations => _clientProxy.Invocations;
+
+        public IHubClients Clients { get; }
+
+        public IGroupManager Groups { get; }
+    }
+
+    private sealed class FlakyHubContext : IHubContext<DeviceHub>
+    {
+        private readonly FlakyClientProxy _clientProxy;
+
+        public FlakyHubContext(int failuresBeforeSuccess)
+        {
+            _clientProxy = new FlakyClientProxy(failuresBeforeSuccess);
+            Clients = new RecordingHubClients(_clientProxy);
+            Groups = new NoOpGroupManager();
+        }
+
+        public Action? OnSuccessfulSend
+        {
+            get => _clientProxy.OnSuccessfulSend;
+            set => _clientProxy.OnSuccessfulSend = value;
+        }
+
+        public List<HubInvocation> Invocations => _clientProxy.Invocations;
+
+        public int SendAttemptCount => _clientProxy.SendAttemptCount;
 
         public IHubClients Clients { get; }
 
@@ -249,6 +382,37 @@ public class WorkerTests
         {
             Invocations.Add(new HubInvocation(method, args));
             OnSend?.Invoke();
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class FlakyClientProxy : IClientProxy
+    {
+        private int _remainingFailures;
+
+        public FlakyClientProxy(int failuresBeforeSuccess)
+        {
+            _remainingFailures = failuresBeforeSuccess;
+        }
+
+        public List<HubInvocation> Invocations { get; } = [];
+
+        public Action? OnSuccessfulSend { get; set; }
+
+        public int SendAttemptCount { get; private set; }
+
+        public Task SendCoreAsync(string method, object?[] args, CancellationToken cancellationToken = default)
+        {
+            SendAttemptCount++;
+
+            if (_remainingFailures > 0)
+            {
+                _remainingFailures--;
+                throw new InvalidOperationException("hub send failed");
+            }
+
+            Invocations.Add(new HubInvocation(method, args));
+            OnSuccessfulSend?.Invoke();
             return Task.CompletedTask;
         }
     }

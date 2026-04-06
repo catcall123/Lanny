@@ -12,26 +12,43 @@ public class DeviceRepository
 
     public DeviceRepository(IServiceScopeFactory scopeFactory, ILogger<DeviceRepository> logger)
     {
-        _scopeFactory = scopeFactory;
-        _logger = logger;
+        _scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
-    public async Task LoadFromDatabaseAsync()
+    public async Task LoadFromDatabaseAsync(CancellationToken cancellationToken = default)
     {
-        using var scope = _scopeFactory.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<LannyDbContext>();
-        var devices = await db.Devices.AsNoTracking().ToListAsync();
+        var devices = await SqliteBusyRetryPolicy.ExecuteAsync(
+            async token =>
+            {
+                using var scope = _scopeFactory.CreateScope();
+                var db = scope.ServiceProvider.GetRequiredService<LannyDbContext>();
+                return await db.Devices.AsNoTracking().ToListAsync(token);
+            },
+            _logger,
+            "load devices from the database",
+            cancellationToken);
+
+        _cache.Clear();
         foreach (var d in devices)
             _cache[d.MacAddress] = d;
+
         _logger.LogInformation("Loaded {Count} devices from database", devices.Count);
     }
 
     public IReadOnlyCollection<Device> GetAll() => _cache.Values.ToList().AsReadOnly();
 
-    public Device? Get(string mac) => _cache.GetValueOrDefault(mac);
-
-    public async Task<Device> UpsertAsync(Device device)
+    public Device? Get(string mac)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(mac);
+        return _cache.GetValueOrDefault(mac);
+    }
+
+    public async Task<Device> UpsertAsync(Device device, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(device);
+        ArgumentException.ThrowIfNullOrWhiteSpace(device.MacAddress);
+
         var existing = _cache.GetValueOrDefault(device.MacAddress);
         if (existing is not null)
         {
@@ -56,44 +73,95 @@ public class DeviceRepository
             existing = device;
         }
 
-        await PersistAsync(existing);
+        await PersistAsync(existing, cancellationToken);
         return existing;
     }
 
     public void MarkOffline(string mac)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(mac);
+
         if (_cache.TryGetValue(mac, out var device))
             device.IsOnline = false;
     }
 
-    public async Task PersistAllAsync()
+    public async Task<int> PruneOfflineDevicesAsync(DateTimeOffset cutoff, CancellationToken cancellationToken = default)
     {
-        using var scope = _scopeFactory.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<LannyDbContext>();
+        var staleKeys = _cache
+            .Where(entry => !entry.Value.IsOnline && entry.Value.LastSeen < cutoff)
+            .Select(entry => entry.Key)
+            .ToList();
 
-        foreach (var device in _cache.Values)
-        {
-            var tracked = await db.Devices.FindAsync(device.MacAddress);
-            if (tracked is null)
-                db.Devices.Add(device);
-            else
-                db.Entry(tracked).CurrentValues.SetValues(device);
-        }
+        if (staleKeys.Count == 0)
+            return 0;
 
-        await db.SaveChangesAsync();
+        foreach (var staleKey in staleKeys)
+            _cache.TryRemove(staleKey, out _);
+
+        await SqliteBusyRetryPolicy.ExecuteAsync(
+            async token =>
+            {
+                using var scope = _scopeFactory.CreateScope();
+                var db = scope.ServiceProvider.GetRequiredService<LannyDbContext>();
+                var staleDevices = await db.Devices
+                    .Where(device => staleKeys.Contains(device.MacAddress))
+                    .ToListAsync(token);
+
+                db.Devices.RemoveRange(staleDevices);
+                await db.SaveChangesAsync(token);
+            },
+            _logger,
+            "prune stale offline devices",
+            cancellationToken);
+
+        _logger.LogInformation("Pruned {Count} stale offline devices from the repository", staleKeys.Count);
+        return staleKeys.Count;
     }
 
-    private async Task PersistAsync(Device device)
+    public async Task PersistAllAsync(CancellationToken cancellationToken = default)
     {
-        using var scope = _scopeFactory.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<LannyDbContext>();
+        await SqliteBusyRetryPolicy.ExecuteAsync(
+            async token =>
+            {
+                using var scope = _scopeFactory.CreateScope();
+                var db = scope.ServiceProvider.GetRequiredService<LannyDbContext>();
 
-        var tracked = await db.Devices.FindAsync(device.MacAddress);
-        if (tracked is null)
-            db.Devices.Add(device);
-        else
-            db.Entry(tracked).CurrentValues.SetValues(device);
+                foreach (var device in _cache.Values)
+                {
+                    token.ThrowIfCancellationRequested();
 
-        await db.SaveChangesAsync();
+                    var tracked = await db.Devices.FindAsync([device.MacAddress], token);
+                    if (tracked is null)
+                        db.Devices.Add(device);
+                    else
+                        db.Entry(tracked).CurrentValues.SetValues(device);
+                }
+
+                await db.SaveChangesAsync(token);
+            },
+            _logger,
+            "persist all devices",
+            cancellationToken);
+    }
+
+    private async Task PersistAsync(Device device, CancellationToken cancellationToken)
+    {
+        await SqliteBusyRetryPolicy.ExecuteAsync(
+            async token =>
+            {
+                using var scope = _scopeFactory.CreateScope();
+                var db = scope.ServiceProvider.GetRequiredService<LannyDbContext>();
+
+                var tracked = await db.Devices.FindAsync([device.MacAddress], token);
+                if (tracked is null)
+                    db.Devices.Add(device);
+                else
+                    db.Entry(tracked).CurrentValues.SetValues(device);
+
+                await db.SaveChangesAsync(token);
+            },
+            _logger,
+            $"persist device {device.MacAddress}",
+            cancellationToken);
     }
 }

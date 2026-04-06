@@ -2,6 +2,7 @@ using Lanny.Data;
 using Lanny.Discovery;
 using Lanny.Hubs;
 using Lanny.Models;
+using Lanny.Runtime;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Options;
 
@@ -12,6 +13,7 @@ public class Worker : BackgroundService
     private readonly ILogger<Worker> _logger;
     private readonly DeviceRepository _repo;
     private readonly IEnumerable<IDiscoveryService> _scanners;
+    private readonly ScanLoopMonitor _scanLoopMonitor;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ScanSettings _settings;
 
@@ -19,70 +21,119 @@ public class Worker : BackgroundService
         ILogger<Worker> logger,
         DeviceRepository repo,
         IEnumerable<IDiscoveryService> scanners,
+        ScanLoopMonitor scanLoopMonitor,
         IServiceScopeFactory scopeFactory,
         IOptions<ScanSettings> settings)
     {
-        _logger = logger;
-        _repo = repo;
-        _scanners = scanners;
-        _scopeFactory = scopeFactory;
-        _settings = settings.Value;
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _repo = repo ?? throw new ArgumentNullException(nameof(repo));
+        _scanners = scanners ?? throw new ArgumentNullException(nameof(scanners));
+        _scanLoopMonitor = scanLoopMonitor ?? throw new ArgumentNullException(nameof(scanLoopMonitor));
+        _scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
+        _settings = settings?.Value ?? throw new ArgumentNullException(nameof(settings));
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         _logger.LogInformation("Lanny starting — loading cached devices");
-        await _repo.LoadFromDatabaseAsync();
+        await _repo.LoadFromDatabaseAsync(stoppingToken);
 
         while (!stoppingToken.IsCancellationRequested)
         {
-            _logger.LogInformation("Starting scan cycle at {Time}", DateTimeOffset.Now);
-
-            var allDiscovered = new List<Device>();
-
-            foreach (var scanner in _scanners)
+            var cycleNumber = _scanLoopMonitor.BeginCycle(DateTimeOffset.UtcNow);
+            using var logScope = _logger.BeginScope(new Dictionary<string, object>
             {
-                try
-                {
-                    var found = await scanner.ScanAsync(stoppingToken);
-                    allDiscovered.AddRange(found);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Scanner {Name} failed", scanner.Name);
-                }
-            }
+                ["CycleNumber"] = cycleNumber,
+            });
 
-            // Correlate devices: merge ping results (no MAC) with ARP results (have MAC)
-            var withMac = allDiscovered.Where(d => !string.IsNullOrEmpty(d.MacAddress)).ToList();
-            var withoutMac = allDiscovered.Where(d => string.IsNullOrEmpty(d.MacAddress)).ToList();
+            LogStalledCycleWarningIfNeeded();
 
-            foreach (var device in withMac)
+            try
             {
-                DeviceMetadataEnricher.MergeRelatedObservations(device, withoutMac);
-                await _repo.UpsertAsync(device);
+                await ExecuteScanCycleAsync(cycleNumber, stoppingToken);
             }
-
-            // Mark devices not seen in this cycle as offline
-            var cutoff = DateTimeOffset.UtcNow.AddMinutes(-_settings.OfflineThresholdMinutes);
-            foreach (var device in _repo.GetAll())
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
-                if (device.IsOnline && device.LastSeen < cutoff)
-                    _repo.MarkOffline(device.MacAddress);
+                _logger.LogInformation("Stopping scan loop during cycle {CycleNumber}", cycleNumber);
+                throw;
             }
-
-            // Persist and notify dashboard
-            await _repo.PersistAllAsync();
-
-            using (var scope = _scopeFactory.CreateScope())
+            catch (Exception ex)
             {
-                var hub = scope.ServiceProvider.GetRequiredService<IHubContext<DeviceHub>>();
-                await hub.Clients.All.SendAsync("DevicesUpdated", _repo.GetAll(), stoppingToken);
+                _logger.LogError(ex, "Scan cycle {CycleNumber} failed unexpectedly", cycleNumber);
             }
-
-            _logger.LogInformation("Scan cycle complete — {Count} devices tracked", _repo.GetAll().Count);
 
             await Task.Delay(TimeSpan.FromSeconds(_settings.ScanIntervalSeconds), stoppingToken);
+        }
+    }
+
+    private async Task ExecuteScanCycleAsync(long cycleNumber, CancellationToken stoppingToken)
+    {
+        _logger.LogDebug("Starting scan cycle {CycleNumber}", cycleNumber);
+
+        var allDiscovered = new List<Device>();
+
+        foreach (var scanner in _scanners)
+        {
+            try
+            {
+                var found = await scanner.ScanAsync(stoppingToken);
+                allDiscovered.AddRange(found);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Scanner {ScannerName} failed during cycle {CycleNumber}", scanner.Name, cycleNumber);
+            }
+        }
+
+        var withMac = allDiscovered.Where(device => !string.IsNullOrEmpty(device.MacAddress)).ToList();
+        var withoutMac = allDiscovered.Where(device => string.IsNullOrEmpty(device.MacAddress)).ToList();
+
+        foreach (var device in withMac)
+        {
+            stoppingToken.ThrowIfCancellationRequested();
+            DeviceMetadataEnricher.MergeRelatedObservations(device, withoutMac);
+            await _repo.UpsertAsync(device, stoppingToken);
+        }
+
+        var offlineCutoff = DateTimeOffset.UtcNow.AddMinutes(-_settings.OfflineThresholdMinutes);
+        foreach (var device in _repo.GetAll())
+        {
+            if (device.IsOnline && device.LastSeen < offlineCutoff)
+                _repo.MarkOffline(device.MacAddress);
+        }
+
+        var pruneCutoff = DateTimeOffset.UtcNow.AddHours(-_settings.OfflineDeviceRetentionHours);
+        var prunedDeviceCount = await _repo.PruneOfflineDevicesAsync(pruneCutoff, stoppingToken);
+
+        await _repo.PersistAllAsync(stoppingToken);
+
+        using (var scope = _scopeFactory.CreateScope())
+        {
+            var hub = scope.ServiceProvider.GetRequiredService<IHubContext<DeviceHub>>();
+            await hub.Clients.All.SendAsync("DevicesUpdated", _repo.GetAll(), stoppingToken);
+        }
+
+        _scanLoopMonitor.CompleteCycle(cycleNumber, DateTimeOffset.UtcNow);
+        _logger.LogDebug(
+            "Scan cycle {CycleNumber} complete with {TrackedDeviceCount} tracked devices and {PrunedDeviceCount} pruned devices",
+            cycleNumber,
+            _repo.GetAll().Count,
+            prunedDeviceCount);
+    }
+
+    private void LogStalledCycleWarningIfNeeded()
+    {
+        var threshold = TimeSpan.FromMinutes(_settings.StalledScanWarningMinutes);
+        if (_scanLoopMonitor.TryMarkStalledWarning(DateTimeOffset.UtcNow, threshold, out var snapshot))
+        {
+            var referenceTime = snapshot.LastCycleCompletedAtUtc ?? snapshot.StartedAtUtc;
+            _logger.LogWarning(
+                "Scan loop has not completed a cycle since {ReferenceTimeUtc}",
+                referenceTime);
         }
     }
 }

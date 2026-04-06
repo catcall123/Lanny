@@ -1,6 +1,7 @@
 using Lanny.Data;
 using Lanny.Models;
 using Lanny.Tests.Support;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -133,5 +134,126 @@ public class DeviceRepositoryTests
         var db = scope.ServiceProvider.GetRequiredService<LannyDbContext>();
         var persisted = await db.Devices.SingleAsync(d => d.MacAddress == "AA:AA:AA:AA:AA:AA");
         Assert.False(persisted.IsOnline);
+    }
+
+    [Fact]
+    public async Task PruneOfflineDevicesAsync_RemovesExpiredOfflineDevicesFromCacheAndDatabase()
+    {
+        await using var host = await SqliteTestHost.CreateAsync();
+        var repository = host.Services.GetRequiredService<DeviceRepository>();
+        var now = new DateTimeOffset(2026, 4, 6, 12, 0, 0, TimeSpan.Zero);
+
+        await using (var scope = host.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<LannyDbContext>();
+            db.Devices.AddRange(
+                new Device
+                {
+                    MacAddress = "00:00:00:00:00:01",
+                    IpAddress = "192.168.1.10",
+                    DiscoveryMethod = "ARP",
+                    FirstSeen = now.AddDays(-10),
+                    LastSeen = now.AddDays(-7),
+                    IsOnline = false,
+                },
+                new Device
+                {
+                    MacAddress = "00:00:00:00:00:02",
+                    IpAddress = "192.168.1.11",
+                    DiscoveryMethod = "ARP",
+                    FirstSeen = now.AddDays(-2),
+                    LastSeen = now.AddHours(-4),
+                    IsOnline = false,
+                },
+                new Device
+                {
+                    MacAddress = "00:00:00:00:00:03",
+                    IpAddress = "192.168.1.12",
+                    DiscoveryMethod = "ARP",
+                    FirstSeen = now.AddDays(-1),
+                    LastSeen = now.AddMinutes(-1),
+                    IsOnline = true,
+                });
+            await db.SaveChangesAsync();
+        }
+
+        await repository.LoadFromDatabaseAsync();
+
+        var removed = await repository.PruneOfflineDevicesAsync(now.AddDays(-1), CancellationToken.None);
+
+        Assert.Equal(1, removed);
+        Assert.Null(repository.Get("00:00:00:00:00:01"));
+        Assert.NotNull(repository.Get("00:00:00:00:00:02"));
+        Assert.NotNull(repository.Get("00:00:00:00:00:03"));
+
+        await using var verificationScope = host.CreateScope();
+        var verificationDb = verificationScope.ServiceProvider.GetRequiredService<LannyDbContext>();
+        Assert.False(await verificationDb.Devices.AnyAsync(device => device.MacAddress == "00:00:00:00:00:01"));
+    }
+
+    [Fact]
+    public async Task UpsertAsync_WhenDatabaseIsTemporarilyLocked_RetriesUntilSaveSucceeds()
+    {
+        var databasePath = Path.Combine(Path.GetTempPath(), $"lanny-tests-{Guid.NewGuid():N}.db");
+        var connectionString = $"Data Source={databasePath}";
+
+        try
+        {
+            await using (var host = await SqliteTestHost.CreateFileBackedAsync(connectionString))
+            {
+                var repository = host.Services.GetRequiredService<DeviceRepository>();
+
+                await using var lockConnection = new SqliteConnection(connectionString);
+                await lockConnection.OpenAsync();
+
+                await using (var beginExclusiveLock = lockConnection.CreateCommand())
+                {
+                    beginExclusiveLock.CommandText = "BEGIN EXCLUSIVE;";
+                    await beginExclusiveLock.ExecuteNonQueryAsync();
+                }
+
+                var upsertTask = repository.UpsertAsync(new Device
+                {
+                    MacAddress = "AA:BB:CC:DD:EE:99",
+                    IpAddress = "192.168.1.99",
+                    DiscoveryMethod = "ARP",
+                    LastSeen = new DateTimeOffset(2026, 4, 6, 12, 0, 0, TimeSpan.Zero),
+                });
+
+                await Task.Delay(200);
+
+                await using (var releaseLock = lockConnection.CreateCommand())
+                {
+                    releaseLock.CommandText = "COMMIT;";
+                    await releaseLock.ExecuteNonQueryAsync();
+                }
+
+                var stored = await upsertTask;
+
+                Assert.Equal("AA:BB:CC:DD:EE:99", stored.MacAddress);
+
+                await using var scope = host.CreateScope();
+                var db = scope.ServiceProvider.GetRequiredService<LannyDbContext>();
+                Assert.True(await db.Devices.AnyAsync(device => device.MacAddress == "AA:BB:CC:DD:EE:99"));
+            }
+        }
+        finally
+        {
+            TryDelete(databasePath);
+            TryDelete($"{databasePath}-shm");
+            TryDelete($"{databasePath}-wal");
+        }
+    }
+
+    private static void TryDelete(string path)
+    {
+        try
+        {
+            if (File.Exists(path))
+                File.Delete(path);
+        }
+        catch (IOException)
+        {
+        }
     }
 }

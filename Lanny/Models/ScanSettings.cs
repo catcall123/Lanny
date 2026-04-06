@@ -8,4 +8,6 @@ public class ScanSettings
     public bool EnablePingScan { get; set; } = true;
     public bool EnableMdns { get; set; } = true;
     public int OfflineThresholdMinutes { get; set; } = 5;
+    public int OfflineDeviceRetentionHours { get; set; } = 168;
+    public int StalledScanWarningMinutes { get; set; } = 10;
 }

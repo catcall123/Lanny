@@ -25,8 +25,8 @@ public class MdnsListener : IDiscoveryService
             using var mdns = new MulticastService();
             var sd = new ServiceDiscovery(mdns);
 
-            var tcs = new TaskCompletionSource();
-            ct.Register(() => tcs.TrySetResult());
+            var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            using var cancellationRegistration = ct.Register(() => tcs.TrySetResult());
 
             void QueryServiceInstances(string serviceName)
             {
@@ -120,7 +120,7 @@ public class MdnsListener : IDiscoveryService
             _logger.LogWarning(ex, "mDNS discovery failed");
         }
 
-        _logger.LogInformation("mDNS discovered {Count} services", devices.Count);
+        _logger.LogDebug("mDNS discovered {Count} services", devices.Count);
         return devices.Values.ToList();
     }
 
