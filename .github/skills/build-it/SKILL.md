@@ -55,16 +55,22 @@ Also follow the AGENTS.md rules:
 - Nullable reference types — no nulls where non-null is expected
 - Classes under 300 lines
 
-### 4. Quality gates
+### 4. Quality gates (MANDATORY — do NOT skip)
 
-ALL of these must pass before committing:
+You MUST NOT commit until the following command succeeds with exit code 0:
 
 ```bash
-dotnet build Lanny/Lanny.csproj --warnaserror
-dotnet test
+dotnet build Lanny.sln --warnaserror && dotnet test Lanny.sln
 ```
 
-If anything fails, fix it before moving on.
+This single command chain enforces zero warnings, zero build errors, and all tests passing. If it fails:
+
+1. Read the output to identify the failure
+2. Fix the code
+3. Re-run the exact same command
+4. Repeat until it exits cleanly
+
+**Hard rule:** Never commit unless this command has returned exit code 0 on the final run. No exceptions.
 
 ### 5. Commit and push
 
