@@ -61,6 +61,33 @@ All code in this solution MUST follow SOLID principles:
 - Keep classes small -- if a file exceeds 300 lines, consider extracting responsibilities
 - All dependencies should be injected via constructor injection and registered in the DI container
 
+### Code Smell Prevention
+Code smells are treated as early defects. Do not introduce them knowingly and do not leave them behind for "later cleanup."
+
+**Required prevention rules:**
+- **No duplication** - If logic is copied twice, extract the shared behavior before merging
+- **No long methods** - If a method becomes hard to scan, deeply nested, or mixes orchestration with low-level detail, extract smaller methods
+- **No oversized classes** - If a class accumulates unrelated responsibilities, split it before adding more behavior
+- **No flag arguments** - If a boolean parameter changes behavior, replace it with separate methods, a strategy, or a richer type
+- **No primitive obsession** - Replace repeated strings, IDs, ranges, and grouped parameters with named constants or value objects
+- **No magic values** - Use named constants, options, or enums instead of unexplained literals
+- **No hidden dependencies** - Do not reach into static state or instantiate collaborators inline when they should be injected
+- **No dead code** - Remove commented-out code, unused members, stale branches, and abandoned TODOs without an issue
+- **No speculative abstraction** - Do not add layers, interfaces, or extension points unless they solve a real current need
+- **No broad catch-and-ignore blocks** - Silent failure is a smell; handle errors explicitly or let them fail fast
+
+**Code smell triggers that require refactoring before completion:**
+- **Long parameter lists or data clumps** - Introduce a dedicated request type or value object
+- **Large `if/else` or `switch` chains by type, string, or mode** - Replace with polymorphism, strategy, or dispatch tables
+- **Feature envy** - Move behavior closer to the data it operates on
+- **Shotgun surgery** - If one change touches many files for one policy, centralize that policy
+- **Temporal coupling** - If methods must be called in a fragile order, redesign the API to make correct usage explicit
+- **Inappropriate intimacy** - If classes know too much about each other's internals, introduce a narrower interface or move the behavior
+
+**Review standard:**
+- Before finishing a change, explicitly look for duplication, poor naming, long methods, long parameter lists, magic values, and mixed responsibilities
+- If a smell cannot be removed within the current change, document the reason and create a GitHub issue before landing the work
+
 ### Test-Driven Development (TDD)
 All development MUST follow TDD methodology:
 1. **Write the test FIRST** - Before writing any production code, write a failing test that defines the expected behavior
