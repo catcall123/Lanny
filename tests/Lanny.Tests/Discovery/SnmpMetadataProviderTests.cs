@@ -34,7 +34,7 @@ public class SnmpMetadataProviderTests
     {
         var client = new RecordingSnmpClient
         {
-            Response = new SnmpSystemData("core-switch", "Cisco IOS XE", "1.3.6.1.4.1.9.1.1208"),
+            Response = new SnmpSystemData("core-switch", "Cisco IOS XE", "1.3.6.1.4.1.9.1.1208", 123456, 24),
         };
         var provider = new SnmpMetadataProvider(
             client,
@@ -56,6 +56,8 @@ public class SnmpMetadataProviderTests
         Assert.Equal("core-switch", observation.SystemName);
         Assert.Equal("Cisco IOS XE", observation.SystemDescription);
         Assert.Equal("1.3.6.1.4.1.9.1.1208", observation.SystemObjectId);
+        Assert.Equal(123456, observation.SystemUptime);
+        Assert.Equal(24, observation.InterfaceCount);
         Assert.Equal("SNMP", observation.DiscoveryMethod);
         Assert.Equal(1, client.CallCount);
         Assert.Equal(IPAddress.Parse("192.168.1.10"), client.RequestedIpAddress);

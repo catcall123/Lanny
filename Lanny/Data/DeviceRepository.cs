@@ -58,6 +58,8 @@ public class DeviceRepository
             existing.SystemName = device.SystemName ?? existing.SystemName;
             existing.SystemDescription = device.SystemDescription ?? existing.SystemDescription;
             existing.SystemObjectId = device.SystemObjectId ?? existing.SystemObjectId;
+            existing.SystemUptime = device.SystemUptime ?? existing.SystemUptime;
+            existing.InterfaceCount = device.InterfaceCount ?? existing.InterfaceCount;
             existing.LastSeen = device.LastSeen;
             existing.IsOnline = true;
             if (!string.IsNullOrEmpty(device.DiscoveryMethod) &&

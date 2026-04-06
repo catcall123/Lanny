@@ -54,6 +54,8 @@ public class LannyDbContextTests
         Assert.Contains("SystemName", columnNames);
         Assert.Contains("SystemDescription", columnNames);
         Assert.Contains("SystemObjectId", columnNames);
+        Assert.Contains("SystemUptime", columnNames);
+        Assert.Contains("InterfaceCount", columnNames);
     }
 
     [Fact]

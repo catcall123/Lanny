@@ -13,7 +13,6 @@ public class Worker : BackgroundService
     private readonly ILogger<Worker> _logger;
     private readonly DeviceRepository _repo;
     private readonly IEnumerable<IDiscoveryService> _scanners;
-    private readonly ISnmpMetadataProvider _snmpMetadataProvider;
     private readonly ScanLoopMonitor _scanLoopMonitor;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ScanSettings _settings;
@@ -22,7 +21,6 @@ public class Worker : BackgroundService
         ILogger<Worker> logger,
         DeviceRepository repo,
         IEnumerable<IDiscoveryService> scanners,
-        ISnmpMetadataProvider snmpMetadataProvider,
         ScanLoopMonitor scanLoopMonitor,
         IServiceScopeFactory scopeFactory,
         IOptions<ScanSettings> settings)
@@ -30,7 +28,6 @@ public class Worker : BackgroundService
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _repo = repo ?? throw new ArgumentNullException(nameof(repo));
         _scanners = scanners ?? throw new ArgumentNullException(nameof(scanners));
-        _snmpMetadataProvider = snmpMetadataProvider ?? throw new ArgumentNullException(nameof(snmpMetadataProvider));
         _scanLoopMonitor = scanLoopMonitor ?? throw new ArgumentNullException(nameof(scanLoopMonitor));
         _scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
         _settings = settings?.Value ?? throw new ArgumentNullException(nameof(settings));
@@ -74,9 +71,16 @@ public class Worker : BackgroundService
         _logger.LogDebug("Starting scan cycle {CycleNumber}", cycleNumber);
 
         var allDiscovered = new List<Device>();
+        var targetedScanners = new List<ITargetedDiscoveryService>();
 
         foreach (var scanner in _scanners)
         {
+            if (scanner is ITargetedDiscoveryService targetedScanner)
+            {
+                targetedScanners.Add(targetedScanner);
+                continue;
+            }
+
             try
             {
                 var found = await scanner.ScanAsync(stoppingToken);
@@ -95,15 +99,31 @@ public class Worker : BackgroundService
         var withMac = allDiscovered.Where(device => !string.IsNullOrEmpty(device.MacAddress)).ToList();
         var withoutMac = allDiscovered.Where(device => string.IsNullOrEmpty(device.MacAddress)).ToList();
 
+        foreach (var targetedScanner in targetedScanners)
+        {
+            try
+            {
+                var found = await targetedScanner.ScanAsync(withMac, stoppingToken);
+                withoutMac.AddRange(found.Where(device => string.IsNullOrEmpty(device.MacAddress)));
+                withMac.AddRange(found.Where(device => !string.IsNullOrEmpty(device.MacAddress)));
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                var scannerName = targetedScanner is IDiscoveryService discoveryService
+                    ? discoveryService.Name
+                    : targetedScanner.GetType().Name;
+                _logger.LogWarning(ex, "Scanner {ScannerName} failed during cycle {CycleNumber}", scannerName, cycleNumber);
+            }
+        }
+
         foreach (var device in withMac)
         {
             stoppingToken.ThrowIfCancellationRequested();
             DeviceMetadataEnricher.MergeRelatedObservations(device, withoutMac);
-
-            var snmpObservation = await _snmpMetadataProvider.TryGetObservationAsync(device, stoppingToken);
-            if (snmpObservation is not null)
-                DeviceMetadataEnricher.MergeObservation(device, snmpObservation);
-
             await _repo.UpsertAsync(device, stoppingToken);
         }
 

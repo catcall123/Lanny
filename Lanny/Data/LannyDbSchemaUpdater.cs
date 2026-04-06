@@ -42,5 +42,11 @@ public static class LannyDbSchemaUpdater
                 "ALTER TABLE \"Devices\" ADD COLUMN \"SystemObjectId\" TEXT NULL;",
                 cancellationToken);
         }
+
+        if (!existingColumns.Contains("SystemUptime"))
+            await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"Devices\" ADD COLUMN \"SystemUptime\" INTEGER NULL;", cancellationToken);
+
+        if (!existingColumns.Contains("InterfaceCount"))
+            await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"Devices\" ADD COLUMN \"InterfaceCount\" INTEGER NULL;", cancellationToken);
     }
 }

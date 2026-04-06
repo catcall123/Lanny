@@ -7,6 +7,9 @@ public class ScanSettings
     public bool EnableArpScan { get; set; } = true;
     public bool EnablePingScan { get; set; } = true;
     public bool EnableMdns { get; set; } = true;
+    public bool EnableSnmpInspection { get; set; } = true;
+    public string SnmpCommunity { get; set; } = "public";
+    public int SnmpTimeoutMs { get; set; } = 1000;
     public int OfflineThresholdMinutes { get; set; } = 5;
     public int OfflineDeviceRetentionHours { get; set; } = 168;
     public int StalledScanWarningMinutes { get; set; } = 10;

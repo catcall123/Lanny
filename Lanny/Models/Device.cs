@@ -19,6 +19,12 @@ public class Device
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? SystemObjectId { get; set; }
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public long? SystemUptime { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? InterfaceCount { get; set; }
+
     public string? DiscoveryMethod { get; set; }
     public List<int> OpenPorts { get; set; } = [];
     public DateTimeOffset FirstSeen { get; set; }

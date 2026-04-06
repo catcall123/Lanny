@@ -68,7 +68,9 @@ function render() {
                 (d.ipAddress || "").toLowerCase().includes(q) ||
                 (d.macAddress || "").toLowerCase().includes(q) ||
                 (d.hostname || "").toLowerCase().includes(q) ||
-                (d.vendor || "").toLowerCase().includes(q)
+                    (d.vendor || "").toLowerCase().includes(q) ||
+                    (d.systemName || "").toLowerCase().includes(q) ||
+                    (d.systemDescription || "").toLowerCase().includes(q)
             );
         })
         .sort((a, b) => {
@@ -138,6 +140,26 @@ function escapeHtml(str) {
     return div.innerHTML;
 }
 
+function formatUptime(ticks) {
+    if (ticks === null || ticks === undefined) return "";
+    const totalSeconds = Math.floor(Number(ticks) / 100);
+    const days = Math.floor(totalSeconds / 86400);
+    const hours = Math.floor((totalSeconds % 86400) / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    return `${days}d ${hours}h ${minutes}m ${seconds}s`;
+}
+
+function renderOptionalDetailRow(label, value) {
+    if (value === null || value === undefined || value === "") return "";
+    return `
+        <div class="detail-row">
+            <span class="detail-label">${escapeHtml(label)}</span>
+            <span class="detail-value">${escapeHtml(String(value))}</span>
+        </div>
+    `;
+}
+
 // --- Modal ---
 function showDeviceModal(mac) {
     const d = devices.find(x => x.macAddress === mac);
@@ -169,6 +191,11 @@ function showDeviceModal(mac) {
             <span class="detail-label">Discovery Methods</span>
             <span class="detail-value">${renderDiscoveryMethods(d.discoveryMethod)}</span>
         </div>
+        ${renderOptionalDetailRow("SNMP System Name", d.systemName)}
+        ${renderOptionalDetailRow("SNMP Description", d.systemDescription)}
+        ${renderOptionalDetailRow("SNMP Object ID", d.systemObjectId)}
+        ${renderOptionalDetailRow("SNMP Uptime", formatUptime(d.systemUptime))}
+        ${renderOptionalDetailRow("SNMP Interfaces", d.interfaceCount)}
         <div class="detail-row">
             <span class="detail-label">Open Ports</span>
             <span class="detail-value">${d.openPorts && d.openPorts.length ? d.openPorts.join(", ") : "—"}</span>

@@ -56,6 +56,8 @@ public class DeviceEndpointsTests
             SystemName = "switch-core",
             SystemDescription = "Cisco IOS XE",
             SystemObjectId = "1.3.6.1.4.1.9.1.1208",
+            SystemUptime = 123456,
+            InterfaceCount = 24,
             DiscoveryMethod = "ARP",
             LastSeen = new DateTimeOffset(2026, 4, 6, 12, 0, 0, TimeSpan.Zero),
         });
@@ -69,9 +71,13 @@ public class DeviceEndpointsTests
         Assert.Equal("switch-core", device.SystemName);
         Assert.Equal("Cisco IOS XE", device.SystemDescription);
         Assert.Equal("1.3.6.1.4.1.9.1.1208", device.SystemObjectId);
+        Assert.Equal(123456, device.SystemUptime);
+        Assert.Equal(24, device.InterfaceCount);
         Assert.Contains("\"systemName\":\"switch-core\"", json);
         Assert.Contains("\"systemDescription\":\"Cisco IOS XE\"", json);
         Assert.Contains("\"systemObjectId\":\"1.3.6.1.4.1.9.1.1208\"", json);
+        Assert.Contains("\"systemUptime\":123456", json);
+        Assert.Contains("\"interfaceCount\":24", json);
     }
 
     [Fact]
@@ -93,6 +99,8 @@ public class DeviceEndpointsTests
         Assert.DoesNotContain("systemName", json, StringComparison.Ordinal);
         Assert.DoesNotContain("systemDescription", json, StringComparison.Ordinal);
         Assert.DoesNotContain("systemObjectId", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("systemUptime", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("interfaceCount", json, StringComparison.Ordinal);
     }
 
     [Fact]

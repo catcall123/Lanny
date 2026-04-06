@@ -65,6 +65,8 @@ public class DeviceMetadataEnricherTests
             SystemName = "core-switch",
             SystemDescription = "Cisco IOS XE",
             SystemObjectId = "1.3.6.1.4.1.9.1.1208",
+            SystemUptime = 123456,
+            InterfaceCount = 24,
             DiscoveryMethod = "SNMP",
         });
 
@@ -72,6 +74,8 @@ public class DeviceMetadataEnricherTests
         Assert.Equal("core-switch", device.SystemName);
         Assert.Equal("Cisco IOS XE", device.SystemDescription);
         Assert.Equal("1.3.6.1.4.1.9.1.1208", device.SystemObjectId);
+        Assert.Equal(123456, device.SystemUptime);
+        Assert.Equal(24, device.InterfaceCount);
         Assert.Equal("ARP,SNMP", device.DiscoveryMethod);
     }
 }

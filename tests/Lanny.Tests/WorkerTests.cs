@@ -153,17 +153,18 @@ public class WorkerTests
                     LastSeen = DateTimeOffset.UtcNow,
                 },
             ]),
+            new SnmpDiscoveryService(new Device
+            {
+                IpAddress = "192.168.1.10",
+                Hostname = "core-switch",
+                SystemName = "core-switch",
+                SystemDescription = "Cisco IOS XE",
+                SystemObjectId = "1.3.6.1.4.1.9.1.1208",
+                SystemUptime = 123456,
+                InterfaceCount = 24,
+                DiscoveryMethod = "SNMP",
+            }),
         };
-        var snmpProvider = new StubSnmpMetadataProvider(new Device
-        {
-            IpAddress = "192.168.1.10",
-            Hostname = "core-switch",
-            SystemName = "core-switch",
-            SystemDescription = "Cisco IOS XE",
-            SystemObjectId = "1.3.6.1.4.1.9.1.1208",
-            DiscoveryMethod = "SNMP",
-            LastSeen = DateTimeOffset.UtcNow,
-        });
 
         using var cts = new CancellationTokenSource();
         hubContext.OnSend = () => cts.Cancel();
@@ -172,7 +173,7 @@ public class WorkerTests
         {
             ScanIntervalSeconds = 60,
             OfflineThresholdMinutes = 5,
-        }, snmpProvider);
+        });
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => worker.RunUntilCanceledAsync(cts.Token));
 
@@ -182,6 +183,8 @@ public class WorkerTests
         Assert.Equal("core-switch", device.SystemName);
         Assert.Equal("Cisco IOS XE", device.SystemDescription);
         Assert.Equal("1.3.6.1.4.1.9.1.1208", device.SystemObjectId);
+        Assert.Equal(123456, device.SystemUptime);
+        Assert.Equal(24, device.InterfaceCount);
         Assert.Equal("ARP,SNMP", device.DiscoveryMethod);
     }
 
@@ -251,14 +254,12 @@ public class WorkerTests
         SqliteTestHost host,
         DeviceRepository repository,
         IEnumerable<IDiscoveryService> scanners,
-        ScanSettings settings,
-        ISnmpMetadataProvider? snmpMetadataProvider = null)
+        ScanSettings settings)
     {
         return new TestWorker(
             NullLogger<Worker>.Instance,
             repository,
             scanners,
-            snmpMetadataProvider ?? new StubSnmpMetadataProvider(null),
             new ScanLoopMonitor(),
             host.Services.GetRequiredService<IServiceScopeFactory>(),
             Options.Create(settings));
@@ -270,11 +271,10 @@ public class WorkerTests
             Microsoft.Extensions.Logging.ILogger<Worker> logger,
             DeviceRepository repository,
             IEnumerable<IDiscoveryService> scanners,
-            ISnmpMetadataProvider snmpMetadataProvider,
             ScanLoopMonitor scanLoopMonitor,
             IServiceScopeFactory scopeFactory,
             IOptions<ScanSettings> settings)
-            : base(logger, repository, scanners, snmpMetadataProvider, scanLoopMonitor, scopeFactory, settings)
+            : base(logger, repository, scanners, scanLoopMonitor, scopeFactory, settings)
         {
         }
 
@@ -351,18 +351,29 @@ public class WorkerTests
             throw new InvalidOperationException("boom");
     }
 
-    private sealed class StubSnmpMetadataProvider : ISnmpMetadataProvider
+    private sealed class SnmpDiscoveryService : IDiscoveryService, ITargetedDiscoveryService
     {
         private readonly Device? _observation;
 
-        public StubSnmpMetadataProvider(Device? observation)
+        public SnmpDiscoveryService(Device? observation)
         {
             _observation = observation;
         }
 
-        public Task<Device?> TryGetObservationAsync(Device device, CancellationToken cancellationToken)
+        public string Name => "SNMP";
+
+        public Task<IReadOnlyList<Device>> ScanAsync(CancellationToken ct)
         {
-            return Task.FromResult(_observation?.IpAddress == device.IpAddress ? _observation : null);
+            return Task.FromResult<IReadOnlyList<Device>>([]);
+        }
+
+        public Task<IReadOnlyList<Device>> ScanAsync(IReadOnlyList<Device> devices, CancellationToken cancellationToken)
+        {
+            IReadOnlyList<Device> observation = _observation is not null && devices.Any(device => device.IpAddress == _observation.IpAddress)
+                ? new[] { _observation }
+                : Array.Empty<Device>();
+
+            return Task.FromResult<IReadOnlyList<Device>>(observation);
         }
     }
 

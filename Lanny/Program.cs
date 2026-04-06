@@ -7,12 +7,20 @@ using Lanny.Models;
 using Lanny.Runtime;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Configuration
 builder.Services.Configure<ScanSettings>(builder.Configuration.GetSection("ScanSettings"));
-builder.Services.Configure<SnmpSettings>(builder.Configuration.GetSection("Snmp"));
+builder.Services.AddOptions<SnmpSettings>()
+    .Configure<IOptions<ScanSettings>>((snmpSettings, scanSettings) =>
+    {
+        snmpSettings.Enabled = scanSettings.Value.EnableSnmpInspection;
+        snmpSettings.Community = scanSettings.Value.SnmpCommunity;
+        snmpSettings.TimeoutMilliseconds = scanSettings.Value.SnmpTimeoutMs;
+        snmpSettings.Port = 161;
+    });
 builder.Services.Configure<HostOptions>(options => options.ShutdownTimeout = TimeSpan.FromSeconds(10));
 
 // Database
@@ -30,6 +38,7 @@ builder.Services.AddSingleton<ISnmpMetadataProvider, SnmpMetadataProvider>();
 builder.Services.AddSingleton<IDiscoveryService, ArpScanner>();
 builder.Services.AddSingleton<IDiscoveryService, PingScanner>();
 builder.Services.AddSingleton<IDiscoveryService, MdnsListener>();
+builder.Services.AddSingleton<IDiscoveryService, SnmpScanner>();
 builder.Services.AddHealthChecks().AddCheck<ScanLoopHealthCheck>("scan_loop");
 
 // Worker

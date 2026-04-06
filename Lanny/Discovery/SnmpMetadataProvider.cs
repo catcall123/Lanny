@@ -55,6 +55,8 @@ public class SnmpMetadataProvider : ISnmpMetadataProvider
                 SystemName = systemData.SystemName,
                 SystemDescription = systemData.SystemDescription,
                 SystemObjectId = systemData.SystemObjectId,
+                SystemUptime = systemData.SystemUptime,
+                InterfaceCount = systemData.InterfaceCount,
                 DiscoveryMethod = "SNMP",
             };
         }
@@ -73,6 +75,8 @@ public class SnmpMetadataProvider : ISnmpMetadataProvider
     {
         return string.IsNullOrWhiteSpace(systemData.SystemName)
             && string.IsNullOrWhiteSpace(systemData.SystemDescription)
-            && string.IsNullOrWhiteSpace(systemData.SystemObjectId);
+            && string.IsNullOrWhiteSpace(systemData.SystemObjectId)
+            && systemData.SystemUptime is null
+            && systemData.InterfaceCount is null;
     }
 }

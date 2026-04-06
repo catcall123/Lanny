@@ -32,6 +32,8 @@ public static class DeviceMetadataEnricher
         target.SystemName ??= observation.SystemName;
         target.SystemDescription ??= observation.SystemDescription;
         target.SystemObjectId ??= observation.SystemObjectId;
+        target.SystemUptime ??= observation.SystemUptime;
+        target.InterfaceCount ??= observation.InterfaceCount;
 
         if (!string.IsNullOrWhiteSpace(observation.DiscoveryMethod) &&
             target.DiscoveryMethod?.Contains(observation.DiscoveryMethod, StringComparison.OrdinalIgnoreCase) != true)
