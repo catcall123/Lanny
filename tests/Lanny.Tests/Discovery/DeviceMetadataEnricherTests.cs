@@ -113,4 +113,23 @@ public class DeviceMetadataEnricherTests
         Assert.Equal("SSH-2.0-OpenSSH_9.6", device.SshBanner);
         Assert.Equal("mDNS,HTTP,TLS,SSH", device.DiscoveryMethod);
     }
+
+    [Fact]
+    public void MergeObservation_WhenCompositeDiscoveryMethodsOverlap_DeduplicatesIndividualTags()
+    {
+        var device = new Device
+        {
+            MacAddress = "AA:BB:CC:DD:EE:11",
+            IpAddress = "192.168.1.16",
+            DiscoveryMethod = "ARP",
+        };
+
+        DeviceMetadataEnricher.MergeObservation(device, new Device
+        {
+            IpAddress = "192.168.1.16",
+            DiscoveryMethod = "ARP,mDNS",
+        });
+
+        Assert.Equal("ARP,mDNS", device.DiscoveryMethod);
+    }
 }

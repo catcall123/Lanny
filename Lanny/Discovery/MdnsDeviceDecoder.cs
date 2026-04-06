@@ -206,10 +206,50 @@ public static class MdnsDeviceDecoder
         if (string.IsNullOrWhiteSpace(value))
             return null;
 
-        var normalized = value.Trim().TrimEnd('.');
+        var normalized = DecodeDnsSdEscapes(value).Trim().TrimEnd('.');
         if (normalized.EndsWith(".local", StringComparison.OrdinalIgnoreCase))
             normalized = normalized[..^6];
 
         return string.IsNullOrWhiteSpace(normalized) ? null : normalized;
+    }
+
+    private static string DecodeDnsSdEscapes(string value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+
+        var builder = new System.Text.StringBuilder(value.Length);
+
+        for (var index = 0; index < value.Length; index++)
+        {
+            if (value[index] != '\\')
+            {
+                builder.Append(value[index]);
+                continue;
+            }
+
+            if (index + 3 < value.Length &&
+                char.IsAsciiDigit(value[index + 1]) &&
+                char.IsAsciiDigit(value[index + 2]) &&
+                char.IsAsciiDigit(value[index + 3]))
+            {
+                var code = (value[index + 1] - '0') * 100 +
+                           (value[index + 2] - '0') * 10 +
+                           (value[index + 3] - '0');
+                builder.Append((char)code);
+                index += 3;
+                continue;
+            }
+
+            if (index + 1 < value.Length)
+            {
+                builder.Append(value[index + 1]);
+                index += 1;
+                continue;
+            }
+
+            builder.Append('\\');
+        }
+
+        return builder.ToString();
     }
 }

@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using Lanny.Discovery;
 using Lanny.Models;
 using Microsoft.EntityFrameworkCore;
 
@@ -23,7 +24,16 @@ public class DeviceRepository
             {
                 using var scope = _scopeFactory.CreateScope();
                 var db = scope.ServiceProvider.GetRequiredService<LannyDbContext>();
-                return await db.Devices.AsNoTracking().ToListAsync(token);
+                var devices = await db.Devices.ToListAsync(token);
+                var noisyDevices = devices.Where(ArpEntryFilter.IsNoiseOnlyDevice).ToList();
+                if (noisyDevices.Count > 0)
+                {
+                    db.Devices.RemoveRange(noisyDevices);
+                    await db.SaveChangesAsync(token);
+                    devices = devices.Except(noisyDevices).ToList();
+                }
+
+                return devices;
             },
             _logger,
             "load devices from the database",
@@ -31,7 +41,10 @@ public class DeviceRepository
 
         _cache.Clear();
         foreach (var d in devices)
+        {
+            d.DiscoveryMethod = DiscoveryMethodSet.Normalize(d.DiscoveryMethod);
             _cache[d.MacAddress] = d;
+        }
 
         _logger.LogInformation("Loaded {Count} devices from database", devices.Count);
     }
@@ -52,6 +65,7 @@ public class DeviceRepository
         var existing = _cache.GetValueOrDefault(device.MacAddress);
         if (existing is not null)
         {
+            existing.DiscoveryMethod = DiscoveryMethodSet.Normalize(existing.DiscoveryMethod);
             existing.IpAddress = device.IpAddress ?? existing.IpAddress;
             existing.Hostname = device.Hostname ?? existing.Hostname;
             existing.Vendor = device.Vendor ?? existing.Vendor;
@@ -84,16 +98,11 @@ public class DeviceRepository
 
             existing.LastSeen = device.LastSeen;
             existing.IsOnline = true;
-            if (!string.IsNullOrEmpty(device.DiscoveryMethod) &&
-                existing.DiscoveryMethod?.Contains(device.DiscoveryMethod, StringComparison.OrdinalIgnoreCase) != true)
-            {
-                existing.DiscoveryMethod = string.IsNullOrEmpty(existing.DiscoveryMethod)
-                    ? device.DiscoveryMethod
-                    : $"{existing.DiscoveryMethod},{device.DiscoveryMethod}";
-            }
+            existing.DiscoveryMethod = DiscoveryMethodSet.Merge(existing.DiscoveryMethod, device.DiscoveryMethod);
         }
         else
         {
+            device.DiscoveryMethod = DiscoveryMethodSet.Normalize(device.DiscoveryMethod);
             device.FirstSeen = device.LastSeen;
             device.IsOnline = true;
             _cache[device.MacAddress] = device;

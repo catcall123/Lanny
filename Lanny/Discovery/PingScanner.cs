@@ -11,25 +11,31 @@ public class PingScanner : IDiscoveryService
     private readonly IHostNameResolver _hostNameResolver;
     private readonly ILogger<PingScanner> _logger;
     private readonly ScanSettings _settings;
+    private readonly IScanSubnetResolver _subnetResolver;
 
     public string Name => "Ping";
 
     public PingScanner(
         IHostNameResolver hostNameResolver,
         ILogger<PingScanner> logger,
+        IScanSubnetResolver subnetResolver,
         IOptions<ScanSettings> settings)
     {
         _hostNameResolver = hostNameResolver ?? throw new ArgumentNullException(nameof(hostNameResolver));
         _logger = logger;
+        _subnetResolver = subnetResolver ?? throw new ArgumentNullException(nameof(subnetResolver));
         _settings = settings.Value;
     }
 
     public async Task<IReadOnlyList<Device>> ScanAsync(CancellationToken ct)
     {
-        var (network, prefixLen) = ParseCidr(_settings.Subnet);
+        var subnet = _subnetResolver.ResolveSubnet(_settings.Subnet);
+        var (network, prefixLen) = ParseCidr(subnet);
         var ips = GenerateAddresses(network, prefixLen);
         var devices = new List<Device>();
         var timeout = 1000; // ms
+
+        _logger.LogDebug("Running ping sweep for subnet {Subnet}", subnet);
 
         // Ping in parallel batches
         var tasks = ips.Select(async ip =>

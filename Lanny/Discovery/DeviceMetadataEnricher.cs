@@ -39,14 +39,7 @@ public static class DeviceMetadataEnricher
         target.SshBanner ??= observation.SshBanner;
         MergeHeaders(target, observation);
         MergeSubjectAlternativeNames(target, observation);
-
-        if (!string.IsNullOrWhiteSpace(observation.DiscoveryMethod) &&
-            target.DiscoveryMethod?.Contains(observation.DiscoveryMethod, StringComparison.OrdinalIgnoreCase) != true)
-        {
-            target.DiscoveryMethod = string.IsNullOrWhiteSpace(target.DiscoveryMethod)
-                ? observation.DiscoveryMethod
-                : $"{target.DiscoveryMethod},{observation.DiscoveryMethod}";
-        }
+        target.DiscoveryMethod = DiscoveryMethodSet.Merge(target.DiscoveryMethod, observation.DiscoveryMethod);
     }
 
     private static string? SelectPreferredVendor(string? currentVendor, string? candidateVendor)

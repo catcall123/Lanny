@@ -26,7 +26,7 @@ public class WorkerTests
         var repository = host.Services.GetRequiredService<DeviceRepository>();
         await repository.UpsertAsync(new Device
         {
-            MacAddress = "11:22:33:44:55:66",
+            MacAddress = "12:22:33:44:55:66",
             IpAddress = "192.168.1.5",
             DiscoveryMethod = "ARP",
             LastSeen = DateTimeOffset.UtcNow.AddMinutes(-10),
@@ -74,7 +74,7 @@ public class WorkerTests
         Assert.Equal("ARP,Ping", updated.DiscoveryMethod);
         Assert.True(updated.IsOnline);
 
-        var stale = repository.Get("11:22:33:44:55:66");
+        var stale = repository.Get("12:22:33:44:55:66");
         Assert.NotNull(stale);
         Assert.False(stale.IsOnline);
 
@@ -83,11 +83,11 @@ public class WorkerTests
         var snapshot = Assert.IsAssignableFrom<IReadOnlyCollection<Device>>(Assert.Single(invocation.Arguments));
         Assert.Equal(2, snapshot.Count);
         Assert.Contains(snapshot, device => device.MacAddress == "AA:BB:CC:DD:EE:FF" && device.IsOnline);
-        Assert.Contains(snapshot, device => device.MacAddress == "11:22:33:44:55:66" && !device.IsOnline);
+        Assert.Contains(snapshot, device => device.MacAddress == "12:22:33:44:55:66" && !device.IsOnline);
 
         await using var scope = host.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<LannyDbContext>();
-        var persistedStale = await db.Devices.SingleAsync(device => device.MacAddress == "11:22:33:44:55:66");
+        var persistedStale = await db.Devices.SingleAsync(device => device.MacAddress == "12:22:33:44:55:66");
         Assert.False(persistedStale.IsOnline);
     }
 
@@ -186,6 +186,59 @@ public class WorkerTests
         Assert.Equal(123456, device.SystemUptime);
         Assert.Equal(24, device.InterfaceCount);
         Assert.Equal("ARP,SNMP", device.DiscoveryMethod);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenServiceFingerprintObservationIsAvailable_MergesFingerprintMetadataIntoTrackedDevice()
+    {
+        var hubContext = new RecordingHubContext();
+        await using var host = await SqliteTestHost.CreateAsync(services =>
+        {
+            services.AddSingleton<IHubContext<DeviceHub>>(hubContext);
+        });
+
+        var repository = host.Services.GetRequiredService<DeviceRepository>();
+        var scanners = new IDiscoveryService[]
+        {
+            new StaticDiscoveryService("ARP", [
+                new Device
+                {
+                    MacAddress = "AA:BB:CC:DD:EE:02",
+                    IpAddress = "192.168.1.20",
+                    DiscoveryMethod = "ARP",
+                    LastSeen = DateTimeOffset.UtcNow,
+                },
+            ]),
+            new FingerprintDiscoveryService(new Device
+            {
+                IpAddress = "192.168.1.20",
+                HttpTitle = "Router Admin",
+                TlsCertificateSubject = "CN=router.local",
+                SshBanner = "SSH-2.0-OpenSSH_9.6",
+                DiscoveryMethod = "HTTP,TLS,SSH",
+            }),
+        };
+
+        using var cts = new CancellationTokenSource();
+        hubContext.OnSend = () => cts.Cancel();
+
+        var worker = CreateWorker(host, repository, scanners, new ScanSettings
+        {
+            ScanIntervalSeconds = 60,
+            OfflineThresholdMinutes = 5,
+            EnableServiceFingerprinting = true,
+            FingerprintTimeoutMs = 1500,
+            FingerprintMaxConcurrency = 8,
+        });
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => worker.RunUntilCanceledAsync(cts.Token));
+
+        var device = repository.Get("AA:BB:CC:DD:EE:02");
+        Assert.NotNull(device);
+        Assert.Equal("Router Admin", device.HttpTitle);
+        Assert.Equal("CN=router.local", device.TlsCertificateSubject);
+        Assert.Equal("SSH-2.0-OpenSSH_9.6", device.SshBanner);
+        Assert.Equal("ARP,HTTP,TLS,SSH", device.DiscoveryMethod);
     }
 
     [Fact]
@@ -361,6 +414,32 @@ public class WorkerTests
         }
 
         public string Name => "SNMP";
+
+        public Task<IReadOnlyList<Device>> ScanAsync(CancellationToken ct)
+        {
+            return Task.FromResult<IReadOnlyList<Device>>([]);
+        }
+
+        public Task<IReadOnlyList<Device>> ScanAsync(IReadOnlyList<Device> devices, CancellationToken cancellationToken)
+        {
+            IReadOnlyList<Device> observation = _observation is not null && devices.Any(device => device.IpAddress == _observation.IpAddress)
+                ? new[] { _observation }
+                : Array.Empty<Device>();
+
+            return Task.FromResult<IReadOnlyList<Device>>(observation);
+        }
+    }
+
+    private sealed class FingerprintDiscoveryService : IDiscoveryService, ITargetedDiscoveryService
+    {
+        private readonly Device? _observation;
+
+        public FingerprintDiscoveryService(Device? observation)
+        {
+            _observation = observation;
+        }
+
+        public string Name => "ServiceFingerprint";
 
         public Task<IReadOnlyList<Device>> ScanAsync(CancellationToken ct)
         {

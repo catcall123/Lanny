@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(gh issue create --title 'Harden service for unattended, unlimited runtime' --body ':*)"
+      "Bash(gh issue create --title 'Harden service for unattended, unlimited runtime' --body ':*)",
+      "Bash(git commit -m ':*)",
+      "Bash(gh issue create --title 'Enable SNMP inspection by default' --body ':*)"
     ]
   }
 }

@@ -60,11 +60,15 @@ public partial class ArpScanner : IDiscoveryService
                 var match = ArpScanLineRegex().Match(line);
                 if (!match.Success) continue;
 
+                var ipAddress = match.Groups["ip"].Value;
                 var mac = match.Groups["mac"].Value.ToUpperInvariant();
+                if (!ArpEntryFilter.IsRelevantNeighbor(ipAddress, mac))
+                    continue;
+
                 devices.Add(new Device
                 {
                     MacAddress = mac,
-                    IpAddress = match.Groups["ip"].Value,
+                    IpAddress = ipAddress,
                     Vendor = OuiLookup.Resolve(mac) ?? match.Groups["vendor"].Value,
                     DiscoveryMethod = Name,
                     LastSeen = DateTimeOffset.UtcNow,
@@ -98,13 +102,15 @@ public partial class ArpScanner : IDiscoveryService
                 var match = ArpTableRegex().Match(line);
                 if (!match.Success) continue;
 
+                var ipAddress = match.Groups["ip"].Value;
                 var mac = match.Groups["mac"].Value.ToUpperInvariant();
-                if (mac is "FF:FF:FF:FF:FF:FF" or "00:00:00:00:00:00") continue;
+                if (!ArpEntryFilter.IsRelevantNeighbor(ipAddress, mac))
+                    continue;
 
                 devices.Add(new Device
                 {
                     MacAddress = mac,
-                    IpAddress = match.Groups["ip"].Value,
+                    IpAddress = ipAddress,
                     Vendor = OuiLookup.Resolve(mac),
                     DiscoveryMethod = Name,
                     LastSeen = DateTimeOffset.UtcNow,

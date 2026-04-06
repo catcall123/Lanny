@@ -82,6 +82,32 @@ public class DeviceRepositoryTests
     }
 
     [Fact]
+    public async Task UpsertAsync_ExistingDevice_MergesCompositeDiscoveryMethodsWithoutDuplicatingExistingTags()
+    {
+        await using var host = await SqliteTestHost.CreateAsync();
+        var repository = host.Services.GetRequiredService<DeviceRepository>();
+        var firstSeen = new DateTimeOffset(2026, 4, 6, 12, 0, 0, TimeSpan.Zero);
+
+        await repository.UpsertAsync(new Device
+        {
+            MacAddress = "AA:BB:CC:DD:EE:FF",
+            IpAddress = "192.168.1.10",
+            DiscoveryMethod = "ARP",
+            LastSeen = firstSeen,
+        });
+
+        var merged = await repository.UpsertAsync(new Device
+        {
+            MacAddress = "AA:BB:CC:DD:EE:FF",
+            Hostname = "printer.local",
+            DiscoveryMethod = "ARP,mDNS",
+            LastSeen = firstSeen.AddMinutes(1),
+        });
+
+        Assert.Equal("ARP,mDNS", merged.DiscoveryMethod);
+    }
+
+    [Fact]
     public async Task LoadFromDatabaseAsync_LoadsPersistedDevicesIntoCache()
     {
         await using var host = await SqliteTestHost.CreateAsync();
@@ -109,6 +135,77 @@ public class DeviceRepositoryTests
         Assert.NotNull(loaded);
         Assert.Equal("seeded-host", loaded.Hostname);
         Assert.Equal("192.168.1.20", loaded.IpAddress);
+    }
+
+    [Fact]
+    public async Task LoadFromDatabaseAsync_NormalizesPersistedDuplicateDiscoveryMethods()
+    {
+        await using var host = await SqliteTestHost.CreateAsync();
+
+        await using (var scope = host.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<LannyDbContext>();
+            db.Devices.Add(new Device
+            {
+                MacAddress = "10:20:30:40:50:61",
+                IpAddress = "192.168.1.21",
+                Hostname = "named-device",
+                DiscoveryMethod = "ARP,ARP,mDNS",
+                FirstSeen = new DateTimeOffset(2026, 4, 6, 8, 0, 0, TimeSpan.Zero),
+                LastSeen = new DateTimeOffset(2026, 4, 6, 8, 5, 0, TimeSpan.Zero),
+                IsOnline = true,
+            });
+            await db.SaveChangesAsync();
+        }
+
+        var repository = host.Services.GetRequiredService<DeviceRepository>();
+        await repository.LoadFromDatabaseAsync();
+
+        var loaded = repository.Get("10:20:30:40:50:61");
+        Assert.NotNull(loaded);
+        Assert.Equal("ARP,mDNS", loaded.DiscoveryMethod);
+    }
+
+    [Fact]
+    public async Task LoadFromDatabaseAsync_RemovesPersistedArpNoiseEntries()
+    {
+        await using var host = await SqliteTestHost.CreateAsync();
+
+        await using (var scope = host.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<LannyDbContext>();
+            db.Devices.AddRange(
+                new Device
+                {
+                    MacAddress = "01-00-5E-00-00-FB",
+                    IpAddress = "224.0.0.251",
+                    DiscoveryMethod = "ARP",
+                    FirstSeen = new DateTimeOffset(2026, 4, 6, 8, 0, 0, TimeSpan.Zero),
+                    LastSeen = new DateTimeOffset(2026, 4, 6, 8, 5, 0, TimeSpan.Zero),
+                    IsOnline = true,
+                },
+                new Device
+                {
+                    MacAddress = "10:20:30:40:50:62",
+                    IpAddress = "192.168.1.22",
+                    DiscoveryMethod = "ARP",
+                    FirstSeen = new DateTimeOffset(2026, 4, 6, 8, 0, 0, TimeSpan.Zero),
+                    LastSeen = new DateTimeOffset(2026, 4, 6, 8, 5, 0, TimeSpan.Zero),
+                    IsOnline = true,
+                });
+            await db.SaveChangesAsync();
+        }
+
+        var repository = host.Services.GetRequiredService<DeviceRepository>();
+        await repository.LoadFromDatabaseAsync();
+
+        Assert.Null(repository.Get("01-00-5E-00-00-FB"));
+        Assert.NotNull(repository.Get("10:20:30:40:50:62"));
+
+        await using var verificationScope = host.CreateScope();
+        var verificationDb = verificationScope.ServiceProvider.GetRequiredService<LannyDbContext>();
+        Assert.False(await verificationDb.Devices.AnyAsync(device => device.MacAddress == "01-00-5E-00-00-FB"));
+        Assert.True(await verificationDb.Devices.AnyAsync(device => device.MacAddress == "10:20:30:40:50:62"));
     }
 
     [Fact]

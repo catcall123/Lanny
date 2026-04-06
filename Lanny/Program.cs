@@ -34,6 +34,7 @@ builder.Services.AddSingleton<ScanLoopMonitor>();
 builder.Services.AddSingleton<IReverseDnsLookup, ReverseDnsLookup>();
 builder.Services.AddSingleton<INetBiosNameService, NetBiosNameService>();
 builder.Services.AddSingleton<IHostNameResolver, HostNameResolver>();
+builder.Services.AddSingleton<IScanSubnetResolver, GatewaySubnetResolver>();
 builder.Services.AddHttpClient<IOuiDatasetHttpClient, OuiDatasetHttpClient>();
 builder.Services.AddSingleton<OuiDatasetRefresher>();
 builder.Services.AddSingleton<ISnmpClient, SharpSnmpClient>();

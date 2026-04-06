@@ -38,4 +38,35 @@ public class MdnsDeviceDecoderTests
         Assert.Equal("Office Printer", device.Hostname);
         Assert.Equal("Brother", device.Vendor);
     }
+
+    [Fact]
+    public void Decode_WhenInstanceNameContainsDnsSdEscapes_DecodesFriendlyHostname()
+    {
+        var device = MdnsDeviceDecoder.Decode(
+            "Hue\\032Bridge\\032-\\032016484._hap._tcp.local",
+            "_hap._tcp",
+            null,
+            [],
+            [IPAddress.Parse("192.168.2.125")],
+            DateTimeOffset.UnixEpoch);
+
+        Assert.NotNull(device);
+        Assert.Equal("Hue Bridge - 016484", device.Hostname);
+    }
+
+    [Fact]
+    public void Decode_WhenFriendlyNamePropertyContainsDnsSdEscapes_DecodesPropertyValue()
+    {
+        var device = MdnsDeviceDecoder.Decode(
+            "Living\\032Room\\032TV._googlecast._tcp.local",
+            "_googlecast._tcp",
+            null,
+            ["fn=Living\\032Room\\032TV"],
+            [IPAddress.Parse("192.168.1.25")],
+            DateTimeOffset.UnixEpoch);
+
+        Assert.NotNull(device);
+        Assert.Equal("Living Room TV", device.Hostname);
+        Assert.Equal("Google", device.Vendor);
+    }
 }
