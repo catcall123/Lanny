@@ -17,6 +17,9 @@ builder.Services.AddDbContext<LannyDbContext>(options =>
 
 // Core services
 builder.Services.AddSingleton<DeviceRepository>();
+builder.Services.AddSingleton<IReverseDnsLookup, ReverseDnsLookup>();
+builder.Services.AddSingleton<INetBiosNameService, NetBiosNameService>();
+builder.Services.AddSingleton<IHostNameResolver, HostNameResolver>();
 builder.Services.AddSingleton<IDiscoveryService, ArpScanner>();
 builder.Services.AddSingleton<IDiscoveryService, PingScanner>();
 builder.Services.AddSingleton<IDiscoveryService, MdnsListener>();

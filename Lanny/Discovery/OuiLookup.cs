@@ -5,7 +5,8 @@ namespace Lanny.Discovery;
 /// <summary>Resolves the first 3 bytes of a MAC address to a vendor name using a built-in OUI prefix table.</summary>
 public static class OuiLookup
 {
-    // A small subset of common OUI prefixes. In production you'd load the full IEEE file.
+    // A representative subset of common OUIs. This keeps the app self-contained while
+    // covering more consumer gear than the original minimal table.
     private static readonly FrozenDictionary<string, string> Prefixes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
     {
         ["00:50:56"] = "VMware",
@@ -18,7 +19,6 @@ public static class OuiLookup
         ["E4:5F:01"] = "Raspberry Pi",
         ["D8:3A:DD"] = "Raspberry Pi",
         ["2C:CF:67"] = "Raspberry Pi",
-        ["AC:DE:48"] = "Private",
         ["00:1A:79"] = "Dell",
         ["F8:BC:12"] = "Dell",
         ["00:25:B5"] = "Dell",
@@ -28,9 +28,13 @@ public static class OuiLookup
         ["3C:22:FB"] = "Apple",
         ["A4:83:E7"] = "Apple",
         ["F0:18:98"] = "Apple",
-        ["AC:DE:48"] = "Apple",
         ["00:1C:B3"] = "Apple",
         ["88:E9:FE"] = "Apple",
+        ["58:AD:12"] = "Apple",
+        ["60:FD:A6"] = "Apple",
+        ["80:A9:97"] = "Apple",
+        ["34:8C:5E"] = "Apple",
+        ["F0:EE:7A"] = "Apple",
         ["18:EE:69"] = "Intel",
         ["A4:34:D9"] = "Intel",
         ["3C:FD:FE"] = "Intel",
@@ -38,7 +42,6 @@ public static class OuiLookup
         ["00:1B:21"] = "Intel",
         ["B4:2E:99"] = "Intel",
         ["00:E0:4C"] = "Realtek",
-        ["52:54:00"] = "QEMU/KVM",
         ["00:16:3E"] = "Xen",
         ["00:03:FF"] = "Microsoft",
         ["00:0D:3A"] = "Microsoft (Azure)",
@@ -89,6 +92,13 @@ public static class OuiLookup
         ["80:CE:62"] = "HP",
         ["F4:39:09"] = "HP",
         ["00:A0:D1"] = "Inventec (Various)",
+        ["10:06:1C"] = "Espressif",
+        ["D4:8A:FC"] = "Espressif",
+        ["E4:65:B8"] = "Espressif",
+        ["60:1A:C7"] = "Nintendo",
+        ["CC:EB:5E"] = "Xiaomi",
+        ["08:F0:1E"] = "eero",
+        ["00:11:32"] = "Synology",
         ["B8:AC:6F"] = "Dell",
         ["A4:BB:6D"] = "Dell",
         ["00:14:22"] = "Dell",
@@ -124,12 +134,28 @@ public static class OuiLookup
 
     public static string? Resolve(string mac)
     {
-        if (string.IsNullOrWhiteSpace(mac) || mac.Length < 8)
+        if (string.IsNullOrWhiteSpace(mac))
             return null;
 
-        // Normalize separators
-        var normalized = mac.Replace('-', ':').ToUpperInvariant();
-        var prefix = normalized[..8]; // "AA:BB:CC"
+        var hex = new string(mac
+            .Where(char.IsAsciiHexDigit)
+            .Select(char.ToUpperInvariant)
+            .ToArray());
+        if (hex.Length < 6)
+            return null;
+
+        var prefix = string.Create(8, hex, static (buffer, source) =>
+        {
+            buffer[0] = source[0];
+            buffer[1] = source[1];
+            buffer[2] = ':';
+            buffer[3] = source[2];
+            buffer[4] = source[3];
+            buffer[5] = ':';
+            buffer[6] = source[4];
+            buffer[7] = source[5];
+        });
+
         return Prefixes.GetValueOrDefault(prefix);
     }
 }

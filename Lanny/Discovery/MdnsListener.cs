@@ -17,7 +17,8 @@ public class MdnsListener : IDiscoveryService
 
     public async Task<IReadOnlyList<Device>> ScanAsync(CancellationToken ct)
     {
-        var devices = new List<Device>();
+        var devices = new Dictionary<string, Device>(StringComparer.OrdinalIgnoreCase);
+        var queriedServices = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         try
         {
@@ -27,51 +28,87 @@ public class MdnsListener : IDiscoveryService
             var tcs = new TaskCompletionSource();
             ct.Register(() => tcs.TrySetResult());
 
-            sd.ServiceInstanceDiscovered += (_, args) =>
+            void QueryServiceInstances(string serviceName)
             {
-                var name = args.ServiceInstanceName.ToString();
-                _logger.LogDebug("mDNS discovered service: {Name}", name);
+                if (string.IsNullOrWhiteSpace(serviceName))
+                    return;
 
-                // Extract hostname from the instance name
-                var hostname = args.ServiceInstanceName.Labels.FirstOrDefault();
-
-                // Look for A/AAAA records in Additional
-                string? ip = null;
-                foreach (var record in args.Message.AdditionalRecords.OfType<AddressRecord>())
+                lock (queriedServices)
                 {
-                    ip = record.Address.ToString();
-                    break;
+                    if (!queriedServices.Add(serviceName))
+                        return;
                 }
 
-                if (hostname is not null)
+                sd.QueryServiceInstances(serviceName);
+            }
+
+            sd.ServiceDiscovered += (_, serviceName) =>
+            {
+                QueryServiceInstances(serviceName.ToString());
+            };
+
+            sd.ServiceInstanceDiscovered += (_, args) =>
+            {
+                var serviceInstanceName = args.ServiceInstanceName.ToString();
+                _logger.LogDebug("mDNS discovered service: {Name}", serviceInstanceName);
+
+                var records = args.Message.Answers.Concat(args.Message.AdditionalRecords).ToArray();
+                var serviceType = GetServiceType(args.ServiceInstanceName);
+                var hostName = records
+                    .OfType<SRVRecord>()
+                    .Select(record => record.Target?.ToString())
+                    .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
+                var textRecords = records
+                    .OfType<TXTRecord>()
+                    .SelectMany(record => record.Strings);
+                var addresses = records
+                    .OfType<AddressRecord>()
+                    .Select(record => record.Address);
+
+                var device = MdnsDeviceDecoder.Decode(
+                    serviceInstanceName,
+                    serviceType,
+                    hostName,
+                    textRecords,
+                    addresses,
+                    DateTimeOffset.UtcNow);
+
+                if (device is not null)
                 {
+                    var key = device.IpAddress ?? device.Hostname ?? serviceInstanceName;
                     lock (devices)
                     {
-                        devices.Add(new Device
+                        if (devices.TryGetValue(key, out var existing))
                         {
-                            MacAddress = string.Empty, // mDNS doesn't provide MAC
-                            IpAddress = ip,
-                            Hostname = hostname,
-                            DiscoveryMethod = Name,
-                            LastSeen = DateTimeOffset.UtcNow,
-                        });
+                            DeviceMetadataEnricher.MergeObservation(existing, device);
+                        }
+                        else
+                        {
+                            devices[key] = device;
+                        }
                     }
                 }
             };
 
             mdns.Start();
 
+            sd.QueryAllServices();
+
             // Query common service types
-            sd.QueryServiceInstances("_http._tcp");
-            sd.QueryServiceInstances("_https._tcp");
-            sd.QueryServiceInstances("_ipp._tcp");       // printers
-            sd.QueryServiceInstances("_printer._tcp");
-            sd.QueryServiceInstances("_airplay._tcp");
-            sd.QueryServiceInstances("_raop._tcp");       // AirPlay audio
-            sd.QueryServiceInstances("_googlecast._tcp");
-            sd.QueryServiceInstances("_smb._tcp");
-            sd.QueryServiceInstances("_ssh._tcp");
-            sd.QueryServiceInstances("_hap._tcp");        // HomeKit
+            QueryServiceInstances("_http._tcp");
+            QueryServiceInstances("_https._tcp");
+            QueryServiceInstances("_ipp._tcp");
+            QueryServiceInstances("_ipps._tcp");
+            QueryServiceInstances("_printer._tcp");
+            QueryServiceInstances("_scanner._tcp");
+            QueryServiceInstances("_airplay._tcp");
+            QueryServiceInstances("_raop._tcp");
+            QueryServiceInstances("_googlecast._tcp");
+            QueryServiceInstances("_smb._tcp");
+            QueryServiceInstances("_ssh._tcp");
+            QueryServiceInstances("_hap._tcp");
+            QueryServiceInstances("_device-info._tcp");
+            QueryServiceInstances("_workstation._tcp");
 
             // Listen for a few seconds
             await Task.WhenAny(tcs.Task, Task.Delay(5000, ct));
@@ -84,6 +121,18 @@ public class MdnsListener : IDiscoveryService
         }
 
         _logger.LogInformation("mDNS discovered {Count} services", devices.Count);
-        return devices;
+        return devices.Values.ToList();
+    }
+
+    private static string? GetServiceType(DomainName serviceInstanceName)
+    {
+        var labels = serviceInstanceName.Labels.ToArray();
+        for (var i = 0; i < labels.Length - 1; i++)
+        {
+            if (labels[i].StartsWith('_') && labels[i + 1].StartsWith('_'))
+                return $"{labels[i]}.{labels[i + 1]}";
+        }
+
+        return null;
     }
 }

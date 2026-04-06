@@ -59,16 +59,7 @@ public class Worker : BackgroundService
 
             foreach (var device in withMac)
             {
-                // Find matching ping result by IP to grab hostname
-                var pingMatch = withoutMac.FirstOrDefault(d =>
-                    d.IpAddress == device.IpAddress && !string.IsNullOrEmpty(d.Hostname));
-                if (pingMatch is not null)
-                {
-                    device.Hostname ??= pingMatch.Hostname;
-                    if (!string.IsNullOrEmpty(pingMatch.DiscoveryMethod))
-                        device.DiscoveryMethod = $"{device.DiscoveryMethod},{pingMatch.DiscoveryMethod}";
-                }
-
+                DeviceMetadataEnricher.MergeRelatedObservations(device, withoutMac);
                 await _repo.UpsertAsync(device);
             }
 

@@ -8,13 +8,18 @@ namespace Lanny.Discovery;
 /// <summary>ICMP ping sweep across the configured subnet.</summary>
 public class PingScanner : IDiscoveryService
 {
+    private readonly IHostNameResolver _hostNameResolver;
     private readonly ILogger<PingScanner> _logger;
     private readonly ScanSettings _settings;
 
     public string Name => "Ping";
 
-    public PingScanner(ILogger<PingScanner> logger, IOptions<ScanSettings> settings)
+    public PingScanner(
+        IHostNameResolver hostNameResolver,
+        ILogger<PingScanner> logger,
+        IOptions<ScanSettings> settings)
     {
+        _hostNameResolver = hostNameResolver ?? throw new ArgumentNullException(nameof(hostNameResolver));
         _logger = logger;
         _settings = settings.Value;
     }
@@ -35,9 +40,7 @@ public class PingScanner : IDiscoveryService
                 var reply = await ping.SendPingAsync(ip, timeout);
                 if (reply.Status == IPStatus.Success)
                 {
-                    string? hostname = null;
-                    try { hostname = (await Dns.GetHostEntryAsync(ip)).HostName; }
-                    catch { /* reverse DNS not available */ }
+                    var hostname = await _hostNameResolver.ResolveAsync(ip, ct);
 
                     return new Device
                     {
