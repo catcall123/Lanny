@@ -15,10 +15,10 @@ public class OuiLookupEnrichmentTests
     }
 
     [Fact]
-    public void Resolve_LocallyAdministeredMacWithoutKnownPrefix_ReturnsNull()
+    public void Resolve_LocallyAdministeredMacWithoutKnownPrefix_ReturnsLocallyAdministeredLabel()
     {
         var vendor = OuiLookup.Resolve("AE:12:34:56:78:90");
 
-        Assert.Null(vendor);
+        Assert.Equal("Locally Administered / Randomized", vendor);
     }
 }

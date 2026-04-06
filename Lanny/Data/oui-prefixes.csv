@@ -1,0 +1,86 @@
+# Prefix,Vendor
+00:50:56,VMware
+00:0C:29,VMware
+00:15:5D,Microsoft (Hyper-V)
+08:00:27,Oracle VirtualBox
+52:54:00,QEMU/KVM
+00:16:3E,Xen
+00:0D:3A,Microsoft (Azure)
+70:85:C2,Apple
+3C:22:FB,Apple
+A4:83:E7,Apple
+F0:18:98,Apple
+88:E9:FE,Apple
+18:EE:69,Intel
+A4:34:D9,Intel
+68:05:CA,Intel
+00:E0:4C,Realtek
+7C:83:34,Google
+F4:F5:D8,Google
+30:FD:38,Google
+54:60:09,Google
+A4:77:33,Google
+44:07:0B,Google
+20:DF:B9,Google
+94:EB:2C,Google
+10:06:1C,Espressif
+D4:8A:FC,Espressif
+E4:65:B8,Espressif
+60:1A:C7,Nintendo
+C0:25:E9,TP-Link
+50:C7:BF,TP-Link
+14:EB:B6,TP-Link
+60:32:B1,TP-Link
+B0:BE:76,TP-Link
+00:23:CD,TP-Link
+30:B5:C2,TP-Link
+78:44:76,TP-Link
+F8:D1:11,TP-Link
+B0:95:75,TP-Link
+18:D6:C7,TP-Link
+00:14:BF,Linksys
+C0:56:27,Belkin/Linksys
+00:1D:7E,Cisco-Linksys
+00:18:39,Cisco-Linksys
+20:AA:4B,Cisco-Linksys
+E8:48:B8,Samsung
+8C:F5:A3,Samsung
+CC:07:AB,Samsung
+B4:3A:28,Samsung
+40:4E:36,HP
+B4:99:BA,HP
+D4:C9:EF,HP
+10:1F:74,HP
+00:21:5A,HP
+94:57:A5,HP
+00:11:32,Synology
+CC:EB:5E,Xiaomi
+08:F0:1E,eero
+B8:27:EB,Raspberry Pi
+DC:A6:32,Raspberry Pi
+E4:5F:01,Raspberry Pi
+2C:CF:67,Raspberry Pi
+00:1A:79,Dell
+F8:BC:12,Dell
+00:25:B5,Dell
+B8:AC:6F,Dell
+A4:BB:6D,Dell
+24:6E:96,Dell
+3C:7C:3F,ASUSTek
+00:1E:8C,ASUSTek
+E0:DB:55,Ubiquiti
+78:8A:20,Ubiquiti
+24:5A:4C,Ubiquiti
+FC:EC:DA,Ubiquiti
+80:2A:A8,Ubiquiti
+18:E8:29,Ubiquiti
+44:D9:E7,Ubiquiti
+68:D7:9A,Ubiquiti
+74:83:C2,Ubiquiti
+68:72:51,Ubiquiti
+AC:8B:A9,Ubiquiti
+04:18:D6,Ubiquiti
+24:A4:3C,Ubiquiti
+DC:9F:DB,Ubiquiti
+70:A7:41,Ubiquiti
+74:AC:B9,Ubiquiti

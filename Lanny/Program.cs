@@ -13,6 +13,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Configuration
 builder.Services.Configure<ScanSettings>(builder.Configuration.GetSection("ScanSettings"));
+builder.Services.Configure<OuiDatasetOptions>(builder.Configuration.GetSection("OuiDataset"));
 builder.Services.AddOptions<SnmpSettings>()
     .Configure<IOptions<ScanSettings>>((snmpSettings, scanSettings) =>
     {
@@ -33,6 +34,8 @@ builder.Services.AddSingleton<ScanLoopMonitor>();
 builder.Services.AddSingleton<IReverseDnsLookup, ReverseDnsLookup>();
 builder.Services.AddSingleton<INetBiosNameService, NetBiosNameService>();
 builder.Services.AddSingleton<IHostNameResolver, HostNameResolver>();
+builder.Services.AddHttpClient<IOuiDatasetHttpClient, OuiDatasetHttpClient>();
+builder.Services.AddSingleton<OuiDatasetRefresher>();
 builder.Services.AddSingleton<ISnmpClient, SharpSnmpClient>();
 builder.Services.AddSingleton<ISnmpMetadataProvider, SnmpMetadataProvider>();
 builder.Services.AddSingleton<IDiscoveryService, ArpScanner>();
@@ -47,6 +50,7 @@ builder.Services.AddHealthChecks().AddCheck<ScanLoopHealthCheck>("scan_loop");
 
 // Worker
 builder.Services.AddHostedService<Worker>();
+builder.Services.AddHostedService<OuiDatasetRefreshService>();
 
 // SignalR + static files
 builder.Services.AddSignalR();

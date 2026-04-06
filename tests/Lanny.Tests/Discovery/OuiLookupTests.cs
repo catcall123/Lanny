@@ -18,7 +18,7 @@ public class OuiLookupTests
     [Fact]
     public void Resolve_UnknownPrefix_ReturnsNull()
     {
-        var vendor = OuiLookup.Resolve("DE:AD:BE:EF:00:01");
+        var vendor = OuiLookup.Resolve("DC:AD:BE:EF:00:01");
 
         Assert.Null(vendor);
     }

@@ -2,135 +2,15 @@ using System.Collections.Frozen;
 
 namespace Lanny.Discovery;
 
-/// <summary>Resolves the first 3 bytes of a MAC address to a vendor name using a built-in OUI prefix table.</summary>
+/// <summary>Resolves the first 3 bytes of a MAC address to a vendor name using a bundled OUI dataset.</summary>
 public static class OuiLookup
 {
-    // A representative subset of common OUIs. This keeps the app self-contained while
-    // covering more consumer gear than the original minimal table.
-    private static readonly FrozenDictionary<string, string> Prefixes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-    {
-        ["00:50:56"] = "VMware",
-        ["00:0C:29"] = "VMware",
-        ["00:15:5D"] = "Microsoft (Hyper-V)",
-        ["08:00:27"] = "Oracle VirtualBox",
-        ["52:54:00"] = "QEMU/KVM",
-        ["B8:27:EB"] = "Raspberry Pi",
-        ["DC:A6:32"] = "Raspberry Pi",
-        ["E4:5F:01"] = "Raspberry Pi",
-        ["D8:3A:DD"] = "Raspberry Pi",
-        ["2C:CF:67"] = "Raspberry Pi",
-        ["00:1A:79"] = "Dell",
-        ["F8:BC:12"] = "Dell",
-        ["00:25:B5"] = "Dell",
-        ["3C:7C:3F"] = "ASUSTek",
-        ["00:1E:8C"] = "ASUSTek",
-        ["70:85:C2"] = "Apple",
-        ["3C:22:FB"] = "Apple",
-        ["A4:83:E7"] = "Apple",
-        ["F0:18:98"] = "Apple",
-        ["00:1C:B3"] = "Apple",
-        ["88:E9:FE"] = "Apple",
-        ["58:AD:12"] = "Apple",
-        ["60:FD:A6"] = "Apple",
-        ["80:A9:97"] = "Apple",
-        ["34:8C:5E"] = "Apple",
-        ["F0:EE:7A"] = "Apple",
-        ["18:EE:69"] = "Intel",
-        ["A4:34:D9"] = "Intel",
-        ["3C:FD:FE"] = "Intel",
-        ["68:05:CA"] = "Intel",
-        ["00:1B:21"] = "Intel",
-        ["B4:2E:99"] = "Intel",
-        ["00:E0:4C"] = "Realtek",
-        ["00:16:3E"] = "Xen",
-        ["00:03:FF"] = "Microsoft",
-        ["00:0D:3A"] = "Microsoft (Azure)",
-        ["7C:83:34"] = "Google",
-        ["F4:F5:D8"] = "Google",
-        ["30:FD:38"] = "Google",
-        ["54:60:09"] = "Google",
-        ["A4:77:33"] = "Google",
-        ["44:07:0B"] = "Google",
-        ["20:DF:B9"] = "Google",
-        ["94:EB:2C"] = "Google",
-        ["C0:25:E9"] = "TP-Link",
-        ["50:C7:BF"] = "TP-Link",
-        ["14:EB:B6"] = "TP-Link",
-        ["60:32:B1"] = "TP-Link",
-        ["B0:BE:76"] = "TP-Link",
-        ["00:23:CD"] = "TP-Link",
-        ["30:B5:C2"] = "TP-Link",
-        ["78:44:76"] = "TP-Link",
-        ["00:14:BF"] = "Linksys",
-        ["C0:56:27"] = "Belkin/Linksys",
-        ["00:1D:7E"] = "Cisco-Linksys",
-        ["00:18:39"] = "Cisco-Linksys",
-        ["20:AA:4B"] = "Cisco-Linksys",
-        ["F8:D1:11"] = "TP-Link",
-        ["B0:95:75"] = "TP-Link",
-        ["18:D6:C7"] = "TP-Link",
-        ["E8:48:B8"] = "Samsung",
-        ["8C:F5:A3"] = "Samsung",
-        ["CC:07:AB"] = "Samsung",
-        ["B4:3A:28"] = "Samsung",
-        ["FC:A1:83"] = "Samsung",
-        ["94:35:0A"] = "Samsung",
-        ["00:26:37"] = "Samsung",
-        ["10:D5:42"] = "Samsung",
-        ["BC:14:85"] = "Samsung",
-        ["30:07:4D"] = "Samsung",
-        ["34:14:5F"] = "Samsung",
-        ["3C:5A:37"] = "Samsung",
-        ["40:4E:36"] = "HP",
-        ["B4:99:BA"] = "HP",
-        ["D4:C9:EF"] = "HP",
-        ["10:1F:74"] = "HP",
-        ["00:21:5A"] = "HP",
-        ["94:57:A5"] = "HP",
-        ["EC:B1:D7"] = "HP",
-        ["1C:C1:DE"] = "HP",
-        ["80:CE:62"] = "HP",
-        ["F4:39:09"] = "HP",
-        ["00:A0:D1"] = "Inventec (Various)",
-        ["10:06:1C"] = "Espressif",
-        ["D4:8A:FC"] = "Espressif",
-        ["E4:65:B8"] = "Espressif",
-        ["60:1A:C7"] = "Nintendo",
-        ["CC:EB:5E"] = "Xiaomi",
-        ["08:F0:1E"] = "eero",
-        ["00:11:32"] = "Synology",
-        ["B8:AC:6F"] = "Dell",
-        ["A4:BB:6D"] = "Dell",
-        ["00:14:22"] = "Dell",
-        ["D4:BE:D9"] = "Dell",
-        ["24:6E:96"] = "Dell",
-        ["F0:1F:AF"] = "Dell",
-        ["34:17:EB"] = "Dell",
-        ["18:DB:F2"] = "Dell",
-        ["78:2B:CB"] = "Dell",
-        ["B0:83:FE"] = "Dell",
-        ["F8:DB:88"] = "Dell",
-        ["4C:76:25"] = "Dell",
-        ["E0:DB:55"] = "Ubiquiti",
-        ["78:8A:20"] = "Ubiquiti",
-        ["24:5A:4C"] = "Ubiquiti",
-        ["FC:EC:DA"] = "Ubiquiti",
-        ["80:2A:A8"] = "Ubiquiti",
-        ["18:E8:29"] = "Ubiquiti",
-        ["44:D9:E7"] = "Ubiquiti",
-        ["68:D7:9A"] = "Ubiquiti",
-        ["B4:FB:E4"] = "Ubiquiti",
-        ["74:83:C2"] = "Ubiquiti",
-        ["68:72:51"] = "Ubiquiti",
-        ["AC:8B:A9"] = "Ubiquiti",
-        ["F4:E2:C6"] = "Ubiquiti",
-        ["04:18:D6"] = "Ubiquiti",
-        ["24:A4:3C"] = "Ubiquiti",
-        ["DC:9F:DB"] = "Ubiquiti",
-        ["68:D7:9A"] = "Ubiquiti",
-        ["70:A7:41"] = "Ubiquiti",
-        ["74:AC:B9"] = "Ubiquiti",
-    }.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
+    private const string LocallyAdministeredLabel = "Locally Administered / Randomized";
+    private static readonly Lock SyncLock = new();
+    private static FrozenDictionary<string, string> _prefixes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        .ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
+    private static string? _loadedDatasetPath;
+    private static DateTime _loadedLastWriteUtc;
 
     public static string? Resolve(string mac)
     {
@@ -144,18 +24,58 @@ public static class OuiLookup
         if (hex.Length < 6)
             return null;
 
-        var prefix = string.Create(8, hex, static (buffer, source) =>
-        {
-            buffer[0] = source[0];
-            buffer[1] = source[1];
-            buffer[2] = ':';
-            buffer[3] = source[2];
-            buffer[4] = source[3];
-            buffer[5] = ':';
-            buffer[6] = source[4];
-            buffer[7] = source[5];
-        });
+        var prefix = OuiVendorDatasetParser.NormalizePrefix(hex);
+        if (prefix is null)
+            return null;
 
-        return Prefixes.GetValueOrDefault(prefix);
+        var vendor = GetPrefixes().GetValueOrDefault(prefix);
+        if (IsLocallyAdministered(hex))
+            return string.IsNullOrWhiteSpace(vendor) ? LocallyAdministeredLabel : $"{LocallyAdministeredLabel} ({vendor})";
+
+        return vendor;
+    }
+
+    private static FrozenDictionary<string, string> GetPrefixes()
+    {
+        var datasetPath = ResolveDatasetPath();
+        var lastWriteUtc = File.Exists(datasetPath)
+            ? File.GetLastWriteTimeUtc(datasetPath)
+            : DateTime.MinValue;
+
+        lock (SyncLock)
+        {
+            if (string.Equals(datasetPath, _loadedDatasetPath, StringComparison.OrdinalIgnoreCase) &&
+                lastWriteUtc == _loadedLastWriteUtc)
+            {
+                return _prefixes;
+            }
+
+            _prefixes = LoadPrefixes(datasetPath);
+            _loadedDatasetPath = datasetPath;
+            _loadedLastWriteUtc = lastWriteUtc;
+            return _prefixes;
+        }
+    }
+
+    private static FrozenDictionary<string, string> LoadPrefixes(string datasetPath)
+    {
+        if (!File.Exists(datasetPath))
+            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase).ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
+
+        return OuiVendorDatasetParser.ParseLines(File.ReadLines(datasetPath));
+    }
+
+    private static string ResolveDatasetPath()
+    {
+        var overridePath = Environment.GetEnvironmentVariable("LANNY_OUI_DATASET_PATH");
+        return string.IsNullOrWhiteSpace(overridePath)
+            ? Path.Combine(AppContext.BaseDirectory, "Data", "oui-prefixes.csv")
+            : overridePath;
+    }
+
+    private static bool IsLocallyAdministered(string normalizedHex)
+    {
+        var firstByte = Convert.ToByte(normalizedHex[..2], 16);
+        return (firstByte & 0b0000_0010) != 0;
     }
 }
