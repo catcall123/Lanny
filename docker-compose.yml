@@ -1,0 +1,21 @@
+# Lanny container — needs host network + capabilities for ARP/ICMP
+# podman build -t lanny .
+# podman run -d --name lanny --network=host --cap-add=NET_RAW --cap-add=NET_ADMIN -v lanny-data:/app/data lanny
+
+services:
+  lanny:
+    build: ./Lanny
+    container_name: lanny
+    network_mode: host
+    cap_add:
+      - NET_RAW
+      - NET_ADMIN
+    volumes:
+      - lanny-data:/app/data
+    restart: unless-stopped
+    environment:
+      - ASPNETCORE_URLS=http://+:8080
+      - ConnectionStrings__Default=Data Source=/app/data/lanny.db
+
+volumes:
+  lanny-data:
