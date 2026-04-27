@@ -2,6 +2,7 @@ using Lanny.Discovery;
 
 namespace Lanny.Tests.Discovery;
 
+[Collection(OuiLookupCollection.Name)]
 public class OuiLookupEnrichmentTests
 {
     [Theory]

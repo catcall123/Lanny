@@ -1,0 +1,19 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug Lanny Worker",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": "Build Lanny",
+            "program": "${workspaceFolder}/Lanny/bin/Debug/net10.0/Lanny.dll",
+            "args": [],
+            "cwd": "${workspaceFolder}/Lanny",
+            "env": {
+                "DOTNET_ENVIRONMENT": "Development"
+            },
+            "stopAtEntry": false,
+            "console": "internalConsole"
+        }
+    ]
+}

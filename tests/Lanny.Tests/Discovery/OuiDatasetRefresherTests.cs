@@ -5,6 +5,7 @@ using Microsoft.Extensions.Options;
 
 namespace Lanny.Tests.Discovery;
 
+[Collection(OuiLookupCollection.Name)]
 public class OuiDatasetRefresherTests
 {
     [Fact]
