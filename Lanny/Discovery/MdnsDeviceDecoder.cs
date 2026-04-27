@@ -136,10 +136,32 @@ public static class MdnsDeviceDecoder
         }
 
         var instanceName = ExtractInstanceName(serviceInstanceName);
+        var modelHint = SelectModelHint(properties);
+        if (IsOpaqueGeneratedHostName(instanceName) && !string.IsNullOrWhiteSpace(modelHint))
+            return modelHint;
+
         if (!string.IsNullOrWhiteSpace(instanceName))
             return NormalizeHostName(instanceName);
 
+        if (IsOpaqueGeneratedHostName(hostName) && !string.IsNullOrWhiteSpace(modelHint))
+            return modelHint;
+
         return NormalizeHostName(hostName);
+    }
+
+    private static string? SelectModelHint(IReadOnlyDictionary<string, string> properties)
+    {
+        foreach (var key in new[] { "ty", "product", "model", "md" })
+        {
+            if (properties.TryGetValue(key, out var value))
+            {
+                var normalized = NormalizeHostName(value);
+                if (!string.IsNullOrWhiteSpace(normalized))
+                    return normalized;
+            }
+        }
+
+        return null;
     }
 
     private static string? SelectVendor(
@@ -211,6 +233,15 @@ public static class MdnsDeviceDecoder
             normalized = normalized[..^6];
 
         return string.IsNullOrWhiteSpace(normalized) ? null : normalized;
+    }
+
+    private static bool IsOpaqueGeneratedHostName(string? value)
+    {
+        var normalized = NormalizeHostName(value);
+        if (string.IsNullOrWhiteSpace(normalized))
+            return false;
+
+        return normalized.All(Uri.IsHexDigit) && normalized.Length >= 10;
     }
 
     private static string DecodeDnsSdEscapes(string value)

@@ -40,6 +40,22 @@ public class MdnsDeviceDecoderTests
     }
 
     [Fact]
+    public void Decode_WhenHostNameIsOpaquePrinterLabel_UsesPrinterTypeHintAsHostname()
+    {
+        var device = MdnsDeviceDecoder.Decode(
+            "F72326000000._ipp._tcp.local",
+            "_ipp._tcp",
+            "F72326000000.local",
+            ["ty=Canon TS8300 series"],
+            [IPAddress.Parse("192.168.2.38")],
+            DateTimeOffset.UnixEpoch);
+
+        Assert.NotNull(device);
+        Assert.Equal("Canon TS8300 series", device.Hostname);
+        Assert.Equal("Canon", device.Vendor);
+    }
+
+    [Fact]
     public void Decode_WhenInstanceNameContainsDnsSdEscapes_DecodesFriendlyHostname()
     {
         var device = MdnsDeviceDecoder.Decode(

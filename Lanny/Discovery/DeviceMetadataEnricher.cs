@@ -26,7 +26,11 @@ public static class DeviceMetadataEnricher
         ArgumentNullException.ThrowIfNull(target);
         ArgumentNullException.ThrowIfNull(observation);
 
-        target.Hostname ??= observation.Hostname;
+        target.Hostname = SelectPreferredHostName(
+            target.Hostname,
+            observation.Hostname,
+            target.DiscoveryMethod,
+            observation.DiscoveryMethod);
         target.IpAddress ??= observation.IpAddress;
         target.Vendor = SelectPreferredVendor(target.Vendor, observation.Vendor);
         target.SystemName ??= observation.SystemName;
@@ -53,6 +57,63 @@ public static class DeviceMetadataEnricher
         return currentVendor.Equals("Private", StringComparison.OrdinalIgnoreCase)
             ? candidateVendor
             : currentVendor;
+    }
+
+    private static string? SelectPreferredHostName(
+        string? currentHostName,
+        string? candidateHostName,
+        string? currentDiscoveryMethod,
+        string? candidateDiscoveryMethod)
+    {
+        if (string.IsNullOrWhiteSpace(candidateHostName))
+            return currentHostName;
+
+        if (string.IsNullOrWhiteSpace(currentHostName))
+            return candidateHostName;
+
+        if (string.Equals(currentHostName, candidateHostName, StringComparison.OrdinalIgnoreCase))
+            return currentHostName;
+
+        var currentLooksGenerated = IsOpaqueGeneratedHostName(currentHostName);
+        var candidateLooksGenerated = IsOpaqueGeneratedHostName(candidateHostName);
+        if (currentLooksGenerated && !candidateLooksGenerated)
+            return candidateHostName;
+
+        if (!currentLooksGenerated && candidateLooksGenerated)
+            return currentHostName;
+
+        return GetDiscoveryConfidence(candidateDiscoveryMethod) > GetDiscoveryConfidence(currentDiscoveryMethod)
+            ? candidateHostName
+            : currentHostName;
+    }
+
+    private static int GetDiscoveryConfidence(string? discoveryMethod)
+    {
+        if (string.IsNullOrWhiteSpace(discoveryMethod))
+            return 0;
+
+        if (discoveryMethod.Contains("mDNS", StringComparison.OrdinalIgnoreCase))
+            return 4;
+
+        if (discoveryMethod.Contains("SNMP", StringComparison.OrdinalIgnoreCase))
+            return 3;
+
+        if (discoveryMethod.Contains("Ping", StringComparison.OrdinalIgnoreCase))
+            return 2;
+
+        return 1;
+    }
+
+    private static bool IsOpaqueGeneratedHostName(string? hostName)
+    {
+        if (string.IsNullOrWhiteSpace(hostName))
+            return false;
+
+        var normalized = hostName.Trim().TrimEnd('.');
+        if (normalized.EndsWith(".local", StringComparison.OrdinalIgnoreCase))
+            normalized = normalized[..^6];
+
+        return normalized.Length >= 10 && normalized.All(Uri.IsHexDigit);
     }
 
     private static void MergeHeaders(Device target, Device observation)

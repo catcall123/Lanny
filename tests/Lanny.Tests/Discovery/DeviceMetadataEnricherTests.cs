@@ -132,4 +132,28 @@ public class DeviceMetadataEnricherTests
 
         Assert.Equal("ARP,mDNS", device.DiscoveryMethod);
     }
+
+    [Fact]
+    public void MergeObservation_WhenMdnsProvidesBetterPrinterName_ReplacesOpaqueReverseDnsHostname()
+    {
+        var device = new Device
+        {
+            MacAddress = "34:9F:7B:F7:23:26",
+            IpAddress = "192.168.2.38",
+            Hostname = "F72326000000.local",
+            DiscoveryMethod = "ARP,Ping",
+        };
+
+        DeviceMetadataEnricher.MergeObservation(device, new Device
+        {
+            IpAddress = "192.168.2.38",
+            Hostname = "Canon TS8300 series",
+            Vendor = "Canon",
+            DiscoveryMethod = "mDNS",
+        });
+
+        Assert.Equal("Canon TS8300 series", device.Hostname);
+        Assert.Equal("Canon", device.Vendor);
+        Assert.Equal("ARP,Ping,mDNS", device.DiscoveryMethod);
+    }
 }
