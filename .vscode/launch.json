@@ -10,10 +10,16 @@
             "args": [],
             "cwd": "${workspaceFolder}/Lanny",
             "env": {
-                "DOTNET_ENVIRONMENT": "Development"
+                "DOTNET_ENVIRONMENT": "Development",
+                "ASPNETCORE_URLS": "http://localhost:5000"
             },
             "stopAtEntry": false,
-            "console": "internalConsole"
+            "console": "internalConsole",
+            "serverReadyAction": {
+                "action": "openExternally",
+                "pattern": "\\bNow listening on:\\s+(https?://\\S+)",
+                "uriFormat": "%s"
+            }
         }
     ]
 }
