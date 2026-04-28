@@ -44,6 +44,9 @@ public static class DeviceMetadataEnricher
         MergeHeaders(target, observation);
         MergeSubjectAlternativeNames(target, observation);
         target.DiscoveryMethod = DiscoveryMethodSet.Merge(target.DiscoveryMethod, observation.DiscoveryMethod);
+
+        if (observation.LastSeen > target.LastSeen)
+            target.LastSeen = observation.LastSeen;
     }
 
     private static string? SelectPreferredVendor(string? currentVendor, string? candidateVendor)

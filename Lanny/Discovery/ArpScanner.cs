@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Text.RegularExpressions;
 using Lanny.Models;
+using MacAddress = Lanny.Models.MacAddress;
 using Microsoft.Extensions.Options;
 
 namespace Lanny.Discovery;
@@ -61,7 +62,7 @@ public partial class ArpScanner : IDiscoveryService
                 if (!match.Success) continue;
 
                 var ipAddress = match.Groups["ip"].Value;
-                var mac = match.Groups["mac"].Value.ToUpperInvariant();
+                var mac = MacAddress.Normalize(match.Groups["mac"].Value);
                 if (!ArpEntryFilter.IsRelevantNeighbor(ipAddress, mac))
                     continue;
 
@@ -103,7 +104,7 @@ public partial class ArpScanner : IDiscoveryService
                 if (!match.Success) continue;
 
                 var ipAddress = match.Groups["ip"].Value;
-                var mac = match.Groups["mac"].Value.ToUpperInvariant();
+                var mac = MacAddress.Normalize(match.Groups["mac"].Value);
                 if (!ArpEntryFilter.IsRelevantNeighbor(ipAddress, mac))
                     continue;
 

@@ -24,16 +24,55 @@ public class DeviceRepository
             {
                 using var scope = _scopeFactory.CreateScope();
                 var db = scope.ServiceProvider.GetRequiredService<LannyDbContext>();
-                var devices = await db.Devices.ToListAsync(token);
-                var noisyDevices = devices.Where(ArpEntryFilter.IsNoiseOnlyDevice).ToList();
-                if (noisyDevices.Count > 0)
+                var devices = await db.Devices.AsNoTracking().ToListAsync(token);
+
+                var noisyKeys = devices.Where(ArpEntryFilter.IsNoiseOnlyDevice).Select(d => d.MacAddress).ToHashSet();
+                if (noisyKeys.Count > 0)
                 {
-                    db.Devices.RemoveRange(noisyDevices);
-                    await db.SaveChangesAsync(token);
-                    devices = devices.Except(noisyDevices).ToList();
+                    await db.Devices.Where(d => noisyKeys.Contains(d.MacAddress)).ExecuteDeleteAsync(token);
+                    devices = devices.Where(d => !noisyKeys.Contains(d.MacAddress)).ToList();
                 }
 
-                return devices;
+                var canonicalDevices = new List<Device>();
+                var keysToDelete = new HashSet<string>(StringComparer.Ordinal);
+                var rowsToInsert = new List<Device>();
+
+                foreach (var group in devices.GroupBy(d => MacAddress.Normalize(d.MacAddress)))
+                {
+                    if (string.IsNullOrEmpty(group.Key))
+                        continue;
+
+                    var entries = group.OrderByDescending(d => d.LastSeen).ToList();
+                    var winner = entries[0];
+                    foreach (var loser in entries.Skip(1))
+                    {
+                        DeviceMetadataEnricher.MergeObservation(winner, loser);
+                        keysToDelete.Add(loser.MacAddress);
+                    }
+
+                    if (!string.Equals(winner.MacAddress, group.Key, StringComparison.Ordinal))
+                    {
+                        keysToDelete.Add(winner.MacAddress);
+                        winner.MacAddress = group.Key;
+                        rowsToInsert.Add(winner);
+                    }
+
+                    canonicalDevices.Add(winner);
+                }
+
+                if (keysToDelete.Count > 0)
+                {
+                    await db.Devices.Where(d => keysToDelete.Contains(d.MacAddress)).ExecuteDeleteAsync(token);
+                }
+
+                if (rowsToInsert.Count > 0)
+                {
+                    db.Devices.AddRange(rowsToInsert);
+                    await db.SaveChangesAsync(token);
+                    _logger.LogInformation("Canonicalized {Count} device MAC addresses on load", rowsToInsert.Count);
+                }
+
+                return canonicalDevices;
             },
             _logger,
             "load devices from the database",
@@ -54,7 +93,7 @@ public class DeviceRepository
     public Device? Get(string mac)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(mac);
-        return _cache.GetValueOrDefault(mac);
+        return _cache.GetValueOrDefault(MacAddress.Normalize(mac));
     }
 
     public async Task<Device> UpsertAsync(Device device, CancellationToken cancellationToken = default)
@@ -62,6 +101,7 @@ public class DeviceRepository
         ArgumentNullException.ThrowIfNull(device);
         ArgumentException.ThrowIfNullOrWhiteSpace(device.MacAddress);
 
+        device.MacAddress = MacAddress.Normalize(device.MacAddress);
         var existing = _cache.GetValueOrDefault(device.MacAddress);
         if (existing is not null)
         {
@@ -96,7 +136,8 @@ public class DeviceRepository
                 }
             }
 
-            existing.LastSeen = device.LastSeen;
+            if (device.LastSeen > existing.LastSeen)
+                existing.LastSeen = device.LastSeen;
             existing.IsOnline = true;
             existing.DiscoveryMethod = DiscoveryMethodSet.Merge(existing.DiscoveryMethod, device.DiscoveryMethod);
         }
@@ -117,7 +158,7 @@ public class DeviceRepository
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(mac);
 
-        if (_cache.TryGetValue(mac, out var device))
+        if (_cache.TryGetValue(MacAddress.Normalize(mac), out var device))
             device.IsOnline = false;
     }
 
