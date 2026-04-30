@@ -39,6 +39,7 @@ builder.Services.AddHttpClient<IOuiDatasetHttpClient, OuiDatasetHttpClient>();
 builder.Services.AddSingleton<OuiDatasetRefresher>();
 builder.Services.AddSingleton<ISnmpClient, SharpSnmpClient>();
 builder.Services.AddSingleton<ISnmpMetadataProvider, SnmpMetadataProvider>();
+builder.Services.AddSingleton<IDiscoveryService, SelfDiscoveryService>();
 builder.Services.AddSingleton<IDiscoveryService, PingScanner>();
 builder.Services.AddSingleton<IDiscoveryService, ArpScanner>();
 builder.Services.AddSingleton<IDiscoveryService, MdnsListener>();

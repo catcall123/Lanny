@@ -95,7 +95,13 @@ public static class DeviceMetadataEnricher
         if (string.IsNullOrWhiteSpace(discoveryMethod))
             return 0;
 
+        if (discoveryMethod.Contains("Self", StringComparison.OrdinalIgnoreCase))
+            return 5;
+
         if (discoveryMethod.Contains("mDNS", StringComparison.OrdinalIgnoreCase))
+            return 4;
+
+        if (discoveryMethod.Contains("DHCP", StringComparison.OrdinalIgnoreCase))
             return 4;
 
         if (discoveryMethod.Contains("SNMP", StringComparison.OrdinalIgnoreCase))

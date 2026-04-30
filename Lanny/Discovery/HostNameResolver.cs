@@ -37,6 +37,13 @@ public sealed class HostNameResolver : IHostNameResolver
         return netBiosName;
     }
 
+    private static readonly string[] HostsFilePollutionNames =
+    [
+        "host.docker.internal",
+        "gateway.docker.internal",
+        "kubernetes.docker.internal",
+    ];
+
     private static string? NormalizeHostName(string? hostname)
     {
         if (string.IsNullOrWhiteSpace(hostname))
@@ -48,6 +55,12 @@ public sealed class HostNameResolver : IHostNameResolver
 
         if (normalized.EndsWith(".in-addr.arpa", StringComparison.OrdinalIgnoreCase))
             return null;
+
+        foreach (var pollution in HostsFilePollutionNames)
+        {
+            if (normalized.Equals(pollution, StringComparison.OrdinalIgnoreCase))
+                return null;
+        }
 
         return normalized;
     }
