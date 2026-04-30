@@ -47,7 +47,7 @@ public class Worker : BackgroundService
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
-                return;
+                throw;
             }
             catch (Exception ex)
             {
@@ -59,7 +59,7 @@ public class Worker : BackgroundService
                 }
                 catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
                 {
-                    return;
+                    throw;
                 }
             }
         }

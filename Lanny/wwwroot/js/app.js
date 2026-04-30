@@ -111,14 +111,14 @@ function renderTable(data) {
 
     tbody.innerHTML = data.map(d => `
         <tr data-mac="${escapeHtml(d.macAddress)}">
-            <td><span class="status-dot ${d.isOnline ? "online" : "offline"}"></span></td>
+            <td class="status-cell"><span class="status-dot ${d.isOnline ? "online" : "offline"}"></span></td>
             <td class="ip-address">${escapeHtml(d.ipAddress || "—")}</td>
             <td class="mac-address">${escapeHtml(d.macAddress || "—")}</td>
-            <td>${escapeHtml(d.hostname || "—")}</td>
-            <td>${escapeHtml(d.vendor || "Unknown")}</td>
-            <td>${renderDiscoveryMethods(d.discoveryMethod)}</td>
-            <td>${formatDate(d.firstSeen)}</td>
-            <td>${formatDate(d.lastSeen)}</td>
+            <td class="hostname-cell">${escapeHtml(d.hostname || "—")}</td>
+            <td class="vendor-cell">${escapeHtml(d.vendor || "Unknown")}</td>
+            <td class="discovery-cell">${renderDiscoveryMethods(d.discoveryMethod)}</td>
+            <td class="date-cell first-seen-cell">${formatDateCompact(d.firstSeen)}</td>
+            <td class="date-cell last-seen-cell">${formatDateCompact(d.lastSeen)}</td>
         </tr>
     `).join("");
 }
@@ -134,6 +134,17 @@ function formatDate(iso) {
     if (!iso) return "—";
     const d = new Date(iso);
     return d.toLocaleDateString() + " " + d.toLocaleTimeString();
+}
+
+function formatDateCompact(iso) {
+    if (!iso) return "—";
+    const d = new Date(iso);
+    const now = new Date();
+    const time = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    if (d.toDateString() === now.toDateString()) return time;
+    const date = d.toLocaleDateString([], { month: "numeric", day: "numeric" }) +
+        (d.getFullYear() === now.getFullYear() ? "" : "/" + String(d.getFullYear()).slice(2));
+    return `${date} ${time}`;
 }
 
 function escapeHtml(str) {

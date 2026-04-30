@@ -1,6 +1,7 @@
 using Lanny.Data;
 using Lanny.Models;
 using Lanny.Runtime;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 
 namespace Lanny.Api;
@@ -33,7 +34,7 @@ public static class DeviceEndpoints
 
         // Scan-loop staleness signal so the UI can warn when data is frozen.
         // Healthy = a cycle completed within 2x the configured scan interval.
-        app.MapGet("/api/scan-loop", (ScanLoopMonitor monitor, IOptions<ScanSettings> settings) =>
+        app.MapGet("/api/scan-loop", ([FromServices] ScanLoopMonitor monitor, IOptions<ScanSettings> settings) =>
         {
             var snapshot = monitor.GetSnapshot();
             var stalenessThreshold = TimeSpan.FromSeconds(settings.Value.ScanIntervalSeconds * 2);
