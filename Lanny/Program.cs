@@ -55,6 +55,7 @@ builder.Services.AddHealthChecks().AddCheck<ScanLoopHealthCheck>("scan_loop");
 
 // Worker
 builder.Services.AddHostedService<Worker>();
+builder.Services.AddHostedService<WorkerWatchdog>();
 builder.Services.AddHostedService<OuiDatasetRefreshService>();
 
 // SignalR + static files

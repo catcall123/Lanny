@@ -137,8 +137,10 @@ public class DeviceRepository
             }
 
             if (device.LastSeen > existing.LastSeen)
+            {
                 existing.LastSeen = device.LastSeen;
-            existing.IsOnline = true;
+                existing.IsOnline = true;
+            }
             existing.DiscoveryMethod = DiscoveryMethodSet.Merge(existing.DiscoveryMethod, device.DiscoveryMethod);
         }
         else

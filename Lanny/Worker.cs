@@ -35,6 +35,38 @@ public class Worker : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        // Outer self-heal loop: anything escaping the inner loop (e.g. a DB
+        // load failure, or a bug in a hot path) is logged and retried, so the
+        // BackgroundService can't die silently on a single transient fault.
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            try
+            {
+                await RunMainLoopAsync(stoppingToken);
+                return;
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                return;
+            }
+            catch (Exception ex)
+            {
+                var backoff = TimeSpan.FromSeconds(30);
+                _logger.LogCritical(ex, "Scan worker died unexpectedly; restarting in {Backoff}", backoff);
+                try
+                {
+                    await Task.Delay(backoff, stoppingToken);
+                }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                {
+                    return;
+                }
+            }
+        }
+    }
+
+    private async Task RunMainLoopAsync(CancellationToken stoppingToken)
+    {
         _logger.LogInformation("Lanny starting — loading cached devices");
         await _repo.LoadFromDatabaseAsync(stoppingToken);
 
