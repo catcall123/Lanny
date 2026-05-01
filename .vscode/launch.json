@@ -14,12 +14,7 @@
                 "ASPNETCORE_URLS": "http://localhost:5000"
             },
             "stopAtEntry": false,
-            "console": "internalConsole",
-            "serverReadyAction": {
-                "action": "openExternally",
-                "pattern": "\\bNow listening on:\\s+(https?://\\S+)",
-                "uriFormat": "%s"
-            }
+            "console": "internalConsole"
         }
     ]
 }
