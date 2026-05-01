@@ -4,6 +4,7 @@ public class ScanSettings
 {
     public string Subnet { get; set; } = "auto";
     public int ScanIntervalSeconds { get; set; } = 60;
+    public string ArpScanInterface { get; set; } = "auto";
     public bool EnableArpScan { get; set; } = true;
     public bool EnablePingScan { get; set; } = true;
     public bool EnableMdns { get; set; } = true;

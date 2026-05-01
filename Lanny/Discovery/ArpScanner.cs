@@ -9,13 +9,18 @@ namespace Lanny.Discovery;
 /// <summary>Runs arp-scan (Linux) or reads the ARP table to discover L2 neighbors.</summary>
 public partial class ArpScanner : IDiscoveryService
 {
+    private readonly ArpScanInterfaceResolver _interfaceResolver;
     private readonly ILogger<ArpScanner> _logger;
     private readonly ScanSettings _settings;
 
     public string Name => "ARP";
 
-    public ArpScanner(ILogger<ArpScanner> logger, IOptions<ScanSettings> settings)
+    public ArpScanner(
+        ArpScanInterfaceResolver interfaceResolver,
+        ILogger<ArpScanner> logger,
+        IOptions<ScanSettings> settings)
     {
+        _interfaceResolver = interfaceResolver ?? throw new ArgumentNullException(nameof(interfaceResolver));
         _logger = logger;
         _settings = settings.Value;
     }
@@ -41,11 +46,12 @@ public partial class ArpScanner : IDiscoveryService
         var devices = new List<Device>();
         try
         {
+            var interfaceName = await _interfaceResolver.ResolveAsync(ct);
             using var process = new Process();
             process.StartInfo = new ProcessStartInfo
             {
                 FileName = "arp-scan",
-                Arguments = $"--localnet --interface=eth0 --retry=1 --timeout=500",
+                Arguments = $"--localnet --interface={interfaceName} --retry=1 --timeout=500",
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,
