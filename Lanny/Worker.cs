@@ -159,6 +159,13 @@ public class Worker : BackgroundService
             await _repo.UpsertAsync(device, stoppingToken);
         }
 
+        foreach (var observation in withoutMac)
+        {
+            stoppingToken.ThrowIfCancellationRequested();
+            if (!string.IsNullOrWhiteSpace(observation.IpAddress))
+                await _repo.TryMergeObservationByIpAsync(observation, stoppingToken);
+        }
+
         var offlineCutoff = DateTimeOffset.UtcNow.AddMinutes(-_settings.OfflineThresholdMinutes);
         foreach (var device in _repo.GetAll())
         {

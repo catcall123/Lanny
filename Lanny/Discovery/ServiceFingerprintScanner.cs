@@ -81,9 +81,8 @@ public class ServiceFingerprintScanner : IDiscoveryService, ITargetedDiscoverySe
             {
                 throw;
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                _logger.LogDebug(ex, "Service fingerprint probe {ProbeName} failed for {IpAddress}", probe.GetType().Name, device.IpAddress);
             }
         }
 

@@ -10,11 +10,9 @@ public sealed class NetBiosNameService : INetBiosNameService
 {
     private static readonly TimeSpan QueryTimeout = TimeSpan.FromMilliseconds(750);
 
-    private readonly ILogger<NetBiosNameService> _logger;
-
     public NetBiosNameService(ILogger<NetBiosNameService> logger)
     {
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        ArgumentNullException.ThrowIfNull(logger);
     }
 
     public async Task<string?> ResolveAsync(IPAddress ipAddress, CancellationToken cancellationToken)
@@ -46,9 +44,8 @@ public sealed class NetBiosNameService : INetBiosNameService
         {
             return null;
         }
-        catch (SocketException ex)
+        catch (SocketException)
         {
-            _logger.LogDebug(ex, "NetBIOS probe failed for {IpAddress}", ipAddress);
             return null;
         }
     }

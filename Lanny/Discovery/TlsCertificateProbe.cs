@@ -7,11 +7,9 @@ namespace Lanny.Discovery;
 
 public class TlsCertificateProbe : IServiceFingerprintProbe
 {
-    private readonly ILogger<TlsCertificateProbe> _logger;
-
     public TlsCertificateProbe(ILogger<TlsCertificateProbe> logger)
     {
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        ArgumentNullException.ThrowIfNull(logger);
     }
 
     public async Task<Device?> ProbeAsync(Device device, CancellationToken cancellationToken)
@@ -53,7 +51,6 @@ public class TlsCertificateProbe : IServiceFingerprintProbe
         }
         catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
         {
-            _logger.LogDebug(ex, "TLS certificate probe failed for {IpAddress}", device.IpAddress);
             return null;
         }
     }

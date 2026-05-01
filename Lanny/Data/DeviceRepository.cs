@@ -164,6 +164,26 @@ public class DeviceRepository
             device.IsOnline = false;
     }
 
+    public async Task<bool> TryMergeObservationByIpAsync(Device observation, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(observation);
+        ArgumentException.ThrowIfNullOrWhiteSpace(observation.IpAddress);
+
+        var existing = _cache.Values.FirstOrDefault(device =>
+            string.Equals(device.IpAddress, observation.IpAddress, StringComparison.OrdinalIgnoreCase));
+
+        if (existing is null)
+            return false;
+
+        existing.DiscoveryMethod = DiscoveryMethodSet.Normalize(existing.DiscoveryMethod);
+        DeviceMetadataEnricher.MergeObservation(existing, observation);
+        if (observation.LastSeen >= existing.LastSeen)
+            existing.IsOnline = true;
+
+        await PersistAsync(existing, cancellationToken);
+        return true;
+    }
+
     public async Task<int> PruneOfflineDevicesAsync(DateTimeOffset cutoff, CancellationToken cancellationToken = default)
     {
         var staleKeys = _cache

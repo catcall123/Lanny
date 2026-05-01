@@ -133,6 +133,59 @@ public class WorkerTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_WhenIpOnlyPassiveObservationMatchesKnownDevice_RefreshesTrackedDevice()
+    {
+        var hubContext = new RecordingHubContext();
+        await using var host = await SqliteTestHost.CreateAsync(services =>
+        {
+            services.AddSingleton<IHubContext<DeviceHub>>(hubContext);
+        });
+
+        var repository = host.Services.GetRequiredService<DeviceRepository>();
+        var staleSeen = DateTimeOffset.UtcNow.AddMinutes(-10);
+        await repository.UpsertAsync(new Device
+        {
+            MacAddress = "AA:BB:CC:DD:EE:03",
+            IpAddress = "192.168.1.30",
+            DiscoveryMethod = "ARP",
+            LastSeen = staleSeen,
+        });
+        repository.MarkOffline("AA:BB:CC:DD:EE:03");
+
+        var passiveSeen = DateTimeOffset.UtcNow;
+        var scanners = new IDiscoveryService[]
+        {
+            new StaticDiscoveryService("SSDP", [
+                new Device
+                {
+                    MacAddress = string.Empty,
+                    IpAddress = "192.168.1.30",
+                    Vendor = "Linux/6.1 UPnP/1.0 Example/1.0",
+                    DiscoveryMethod = "SSDP",
+                    LastSeen = passiveSeen,
+                },
+            ]),
+        };
+
+        using var cts = new CancellationTokenSource();
+        hubContext.OnSend = () => cts.Cancel();
+
+        var worker = CreateWorker(host, repository, scanners, new ScanSettings
+        {
+            ScanIntervalSeconds = 60,
+            OfflineThresholdMinutes = 5,
+        });
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => worker.RunUntilCanceledAsync(cts.Token));
+
+        var device = repository.Get("AA:BB:CC:DD:EE:03");
+        Assert.NotNull(device);
+        Assert.True(device.IsOnline);
+        Assert.Equal(passiveSeen, device.LastSeen);
+        Assert.Equal("ARP,SSDP", device.DiscoveryMethod);
+    }
+
+    [Fact]
     public async Task ExecuteAsync_WhenSnmpObservationIsAvailable_MergesSnmpMetadataIntoTrackedDevice()
     {
         var hubContext = new RecordingHubContext();

@@ -62,7 +62,7 @@ internal static class SqliteBusyRetryPolicy
             }
             catch (Exception ex) when (attempt < RetryDelays.Length && IsTransientSqliteLock(ex))
             {
-                logger.LogWarning(ex, "Transient SQLite lock while attempting to {OperationName}; retry {Attempt} of {MaxAttempts}.", operationName, attempt + 1, RetryDelays.Length);
+                logger.LogWarning("Transient SQLite lock while attempting to {OperationName}; retry {Attempt} of {MaxAttempts}: {Message}", operationName, attempt + 1, RetryDelays.Length, ex.Message);
                 await Task.Delay(RetryDelays[attempt], cancellationToken);
             }
         }

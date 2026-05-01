@@ -94,7 +94,7 @@ public sealed class DhcpListener : BackgroundService, IDiscoveryService
             }
             catch (Exception ex)
             {
-                _logger.LogDebug(ex, "DHCP receive error");
+                _logger.LogDebug("DHCP receive error: {Message}", ex.Message);
             }
         }
     }

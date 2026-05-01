@@ -6,11 +6,9 @@ namespace Lanny.Discovery;
 
 public class SshBannerProbe : IServiceFingerprintProbe
 {
-    private readonly ILogger<SshBannerProbe> _logger;
-
     public SshBannerProbe(ILogger<SshBannerProbe> logger)
     {
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        ArgumentNullException.ThrowIfNull(logger);
     }
 
     public async Task<Device?> ProbeAsync(Device device, CancellationToken cancellationToken)
@@ -44,7 +42,6 @@ public class SshBannerProbe : IServiceFingerprintProbe
         }
         catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
         {
-            _logger.LogDebug(ex, "SSH banner probe failed for {IpAddress}", device.IpAddress);
             return null;
         }
     }

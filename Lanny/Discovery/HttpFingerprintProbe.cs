@@ -7,12 +7,11 @@ namespace Lanny.Discovery;
 public class HttpFingerprintProbe : IServiceFingerprintProbe
 {
     private static readonly (string Scheme, int Port)[] Endpoints = [("https", 443), ("http", 80)];
-    private readonly ILogger<HttpFingerprintProbe> _logger;
     private readonly ScanSettings _settings;
 
     public HttpFingerprintProbe(ILogger<HttpFingerprintProbe> logger, IOptions<ScanSettings> settings)
     {
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        ArgumentNullException.ThrowIfNull(logger);
         _settings = settings?.Value ?? throw new ArgumentNullException(nameof(settings));
     }
 
@@ -58,7 +57,6 @@ public class HttpFingerprintProbe : IServiceFingerprintProbe
             }
             catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
             {
-                _logger.LogDebug(ex, "HTTP fingerprint probe failed for {IpAddress} over {Scheme}", device.IpAddress, scheme);
             }
         }
 

@@ -64,9 +64,8 @@ public class SnmpMetadataProvider : ISnmpMetadataProvider
         {
             throw;
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            _logger.LogDebug(ex, "SNMP enrichment failed for {IpAddress}", device.IpAddress);
             return null;
         }
     }

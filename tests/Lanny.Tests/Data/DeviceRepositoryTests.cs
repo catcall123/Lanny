@@ -234,6 +234,46 @@ public class DeviceRepositoryTests
     }
 
     [Fact]
+    public async Task TryMergeObservationByIpAsync_ExistingDevice_RefreshesIpOnlyPassiveObservation()
+    {
+        await using var host = await SqliteTestHost.CreateAsync();
+        var repository = host.Services.GetRequiredService<DeviceRepository>();
+        var firstSeen = new DateTimeOffset(2026, 5, 1, 12, 0, 0, TimeSpan.Zero);
+
+        await repository.UpsertAsync(new Device
+        {
+            MacAddress = "AA:BB:CC:DD:EE:FF",
+            IpAddress = "192.168.2.96",
+            Hostname = "receiver",
+            DiscoveryMethod = "ARP",
+            LastSeen = firstSeen,
+        });
+
+        repository.MarkOffline("AA:BB:CC:DD:EE:FF");
+
+        var merged = await repository.TryMergeObservationByIpAsync(new Device
+        {
+            IpAddress = "192.168.2.96",
+            Vendor = "Linux/6.1 UPnP/1.0 Example/1.0",
+            DiscoveryMethod = "SSDP",
+            LastSeen = firstSeen.AddMinutes(2),
+        });
+
+        Assert.True(merged);
+        var stored = repository.Get("AA:BB:CC:DD:EE:FF");
+        Assert.NotNull(stored);
+        Assert.True(stored.IsOnline);
+        Assert.Equal(firstSeen.AddMinutes(2), stored.LastSeen);
+        Assert.Equal("ARP,SSDP", stored.DiscoveryMethod);
+
+        await using var scope = host.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<LannyDbContext>();
+        var persisted = await db.Devices.SingleAsync(d => d.MacAddress == "AA:BB:CC:DD:EE:FF");
+        Assert.True(persisted.IsOnline);
+        Assert.Equal("ARP,SSDP", persisted.DiscoveryMethod);
+    }
+
+    [Fact]
     public async Task PruneOfflineDevicesAsync_RemovesExpiredOfflineDevicesFromCacheAndDatabase()
     {
         await using var host = await SqliteTestHost.CreateAsync();

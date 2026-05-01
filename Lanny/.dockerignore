@@ -1,0 +1,11 @@
+**/bin/
+**/obj/
+**/.vs/
+**/.vscode/
+**/.git/
+**/.gitignore
+**/TestResults/
+*.user
+*.suo
+lanny.db
+lanny.db-*
