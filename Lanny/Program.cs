@@ -3,6 +3,7 @@ using Lanny.Api;
 using Lanny.Data;
 using Lanny.Discovery;
 using Lanny.Hubs;
+using Lanny.Messaging;
 using Lanny.Models;
 using Lanny.Runtime;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
@@ -31,6 +32,8 @@ builder.Services.AddDbContext<LannyDbContext>(options =>
 // Core services
 builder.Services.AddSingleton<DeviceRepository>();
 builder.Services.AddSingleton<ScanLoopMonitor>();
+builder.Services.AddSingleton<IMqttMessagePublisher, MqttNetMessagePublisher>();
+builder.Services.AddSingleton<IDeviceStatusPublisher, MqttDeviceStatusPublisher>();
 builder.Services.AddSingleton<IReverseDnsLookup, ReverseDnsLookup>();
 builder.Services.AddSingleton<INetBiosNameService, NetBiosNameService>();
 builder.Services.AddSingleton<IHostNameResolver, HostNameResolver>();

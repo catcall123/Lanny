@@ -1,6 +1,7 @@
 using Lanny.Data;
 using Lanny.Discovery;
 using Lanny.Hubs;
+using Lanny.Messaging;
 using Lanny.Models;
 using Lanny.Runtime;
 using Lanny.Tests.Support;
@@ -18,9 +19,11 @@ public class WorkerTests
     public async Task ExecuteAsync_CorrelatesDevicesMarksStaleDevicesOfflineAndBroadcastsSnapshot()
     {
         var hubContext = new RecordingHubContext();
+        var mqttPublisher = new RecordingDeviceStatusPublisher();
         await using var host = await SqliteTestHost.CreateAsync(services =>
         {
             services.AddSingleton<IHubContext<DeviceHub>>(hubContext);
+            services.AddSingleton<IDeviceStatusPublisher>(mqttPublisher);
         });
 
         var repository = host.Services.GetRequiredService<DeviceRepository>();
@@ -84,6 +87,8 @@ public class WorkerTests
         Assert.Equal(2, snapshot.Count);
         Assert.Contains(snapshot, device => device.MacAddress == "AA:BB:CC:DD:EE:FF" && device.IsOnline);
         Assert.Contains(snapshot, device => device.MacAddress == "12:22:33:44:55:66" && !device.IsOnline);
+        Assert.Single(mqttPublisher.Snapshots);
+        Assert.Contains(mqttPublisher.Snapshots[0], device => device.Hostname == "workstation.local" && device.IsOnline);
 
         await using var scope = host.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<LannyDbContext>();
@@ -368,6 +373,7 @@ public class WorkerTests
             scanners,
             new ScanLoopMonitor(),
             host.Services.GetRequiredService<IServiceScopeFactory>(),
+            host.Services.GetService<IDeviceStatusPublisher>() ?? new RecordingDeviceStatusPublisher(),
             Options.Create(settings));
     }
 
@@ -379,8 +385,9 @@ public class WorkerTests
             IEnumerable<IDiscoveryService> scanners,
             ScanLoopMonitor scanLoopMonitor,
             IServiceScopeFactory scopeFactory,
+            IDeviceStatusPublisher deviceStatusPublisher,
             IOptions<ScanSettings> settings)
-            : base(logger, repository, scanners, scanLoopMonitor, scopeFactory, settings)
+            : base(logger, repository, scanners, scanLoopMonitor, scopeFactory, deviceStatusPublisher, settings)
         {
         }
 
@@ -639,4 +646,15 @@ public class WorkerTests
     }
 
     private sealed record HubInvocation(string MethodName, object?[] Arguments);
+
+    private sealed class RecordingDeviceStatusPublisher : IDeviceStatusPublisher
+    {
+        public List<IReadOnlyCollection<Device>> Snapshots { get; } = [];
+
+        public Task PublishAsync(IReadOnlyCollection<Device> devices, CancellationToken cancellationToken = default)
+        {
+            Snapshots.Add(devices.ToList().AsReadOnly());
+            return Task.CompletedTask;
+        }
+    }
 }

@@ -1,6 +1,7 @@
 using Lanny.Data;
 using Lanny.Discovery;
 using Lanny.Hubs;
+using Lanny.Messaging;
 using Lanny.Models;
 using Lanny.Runtime;
 using Microsoft.AspNetCore.SignalR;
@@ -15,6 +16,7 @@ public class Worker : BackgroundService
     private readonly IEnumerable<IDiscoveryService> _scanners;
     private readonly ScanLoopMonitor _scanLoopMonitor;
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly IDeviceStatusPublisher _deviceStatusPublisher;
     private readonly ScanSettings _settings;
 
     public Worker(
@@ -23,6 +25,7 @@ public class Worker : BackgroundService
         IEnumerable<IDiscoveryService> scanners,
         ScanLoopMonitor scanLoopMonitor,
         IServiceScopeFactory scopeFactory,
+        IDeviceStatusPublisher deviceStatusPublisher,
         IOptions<ScanSettings> settings)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -30,6 +33,7 @@ public class Worker : BackgroundService
         _scanners = scanners ?? throw new ArgumentNullException(nameof(scanners));
         _scanLoopMonitor = scanLoopMonitor ?? throw new ArgumentNullException(nameof(scanLoopMonitor));
         _scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
+        _deviceStatusPublisher = deviceStatusPublisher ?? throw new ArgumentNullException(nameof(deviceStatusPublisher));
         _settings = settings?.Value ?? throw new ArgumentNullException(nameof(settings));
     }
 
@@ -177,11 +181,25 @@ public class Worker : BackgroundService
         var prunedDeviceCount = await _repo.PruneOfflineDevicesAsync(pruneCutoff, stoppingToken);
 
         await _repo.PersistAllAsync(stoppingToken);
+        var snapshot = _repo.GetAll();
+
+        try
+        {
+            await _deviceStatusPublisher.PublishAsync(snapshot, stoppingToken);
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to publish MQTT device status snapshot");
+        }
 
         using (var scope = _scopeFactory.CreateScope())
         {
             var hub = scope.ServiceProvider.GetRequiredService<IHubContext<DeviceHub>>();
-            await hub.Clients.All.SendAsync("DevicesUpdated", _repo.GetAll(), stoppingToken);
+            await hub.Clients.All.SendAsync("DevicesUpdated", snapshot, stoppingToken);
         }
 
         _scanLoopMonitor.CompleteCycle(cycleNumber, DateTimeOffset.UtcNow);
