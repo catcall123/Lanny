@@ -11,6 +11,8 @@
     --orange: #fdcb6e;
     --blue: #74b9ff;
     --radius: 8px;
+    --device-table-min-width: 82rem;
+    --date-column-width: 13rem;
 }
 
 * {
@@ -185,7 +187,7 @@ main {
 
 table {
     width: 100%;
-    min-width: 62rem;
+    min-width: max(100%, var(--device-table-min-width));
     border-collapse: collapse;
     table-layout: fixed;
 }
@@ -252,7 +254,7 @@ tbody td {
 
 .date-column,
 .date-cell {
-    width: 9.25rem;
+    width: var(--date-column-width);
     overflow: visible;
     font-variant-numeric: tabular-nums;
 }
