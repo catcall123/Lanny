@@ -117,8 +117,8 @@ function renderTable(data) {
             <td class="hostname-cell">${escapeHtml(d.hostname || "—")}</td>
             <td class="vendor-cell">${escapeHtml(d.vendor || "Unknown")}</td>
             <td class="discovery-cell">${renderDiscoveryMethods(d.discoveryMethod)}</td>
-            <td class="date-cell first-seen-cell">${formatDateCompact(d.firstSeen)}</td>
-            <td class="date-cell last-seen-cell">${formatDateCompact(d.lastSeen)}</td>
+            <td class="date-cell first-seen-cell">${formatDate(d.firstSeen)}</td>
+            <td class="date-cell last-seen-cell">${formatDate(d.lastSeen)}</td>
         </tr>
     `).join("");
 }
@@ -133,18 +133,12 @@ function renderDiscoveryMethods(methods) {
 function formatDate(iso) {
     if (!iso) return "—";
     const d = new Date(iso);
-    return d.toLocaleDateString() + " " + d.toLocaleTimeString();
+    if (Number.isNaN(d.getTime())) return "—";
+    return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
 }
 
-function formatDateCompact(iso) {
-    if (!iso) return "—";
-    const d = new Date(iso);
-    const now = new Date();
-    const time = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-    if (d.toDateString() === now.toDateString()) return time;
-    const date = d.toLocaleDateString([], { month: "numeric", day: "numeric" }) +
-        (d.getFullYear() === now.getFullYear() ? "" : "/" + String(d.getFullYear()).slice(2));
-    return `${date} ${time}`;
+function pad2(value) {
+    return String(value).padStart(2, "0");
 }
 
 function escapeHtml(str) {

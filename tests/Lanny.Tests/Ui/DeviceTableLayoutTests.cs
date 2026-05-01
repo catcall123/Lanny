@@ -15,7 +15,10 @@ public class DeviceTableLayoutTests
         Assert.Contains("<link rel=\"stylesheet\" href=\"css/style.css?v=", index);
         Assert.Contains("<script src=\"js/app.js?v=", index);
         Assert.Contains("<th class=\"sortable date-column last-seen-column\" data-sort=\"lastSeen\">Last Seen</th>", index);
-        Assert.Contains("<td class=\"date-cell last-seen-cell\">${formatDateCompact(d.lastSeen)}</td>", app);
+        Assert.Contains("<td class=\"date-cell first-seen-cell\">${formatDate(d.firstSeen)}</td>", app);
+        Assert.Contains("<td class=\"date-cell last-seen-cell\">${formatDate(d.lastSeen)}</td>", app);
+        Assert.Contains("return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;", app);
+        Assert.DoesNotContain("formatDateCompact", app);
         Assert.Contains("--device-table-min-width:", css);
         Assert.Contains("--date-column-width: 13rem;", css);
         Assert.Contains("min-width: max(100%, var(--device-table-min-width));", css);
