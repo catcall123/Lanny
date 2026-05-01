@@ -108,6 +108,99 @@ public class DeviceRepositoryTests
     }
 
     [Fact]
+    public async Task UpsertAsync_WhenNewerMacUsesExistingHostname_DeletesOlderHostnamePairing()
+    {
+        await using var host = await SqliteTestHost.CreateAsync();
+        var repository = host.Services.GetRequiredService<DeviceRepository>();
+        var firstSeen = new DateTimeOffset(2026, 5, 1, 8, 0, 0, TimeSpan.Zero);
+
+        await repository.UpsertAsync(new Device
+        {
+            MacAddress = "C6:9B:76:67:10:0B",
+            IpAddress = "192.168.2.136",
+            Hostname = "S24-von-Gisela",
+            DiscoveryMethod = "DHCP",
+            LastSeen = firstSeen,
+        });
+
+        var current = await repository.UpsertAsync(new Device
+        {
+            MacAddress = "3A:F6:E9:E1:17:2A",
+            IpAddress = "192.168.2.47",
+            Hostname = "S24-von-Gisela",
+            DiscoveryMethod = "ARP",
+            LastSeen = firstSeen.AddHours(1),
+        });
+
+        Assert.Equal("3A:F6:E9:E1:17:2A", current.MacAddress);
+        Assert.Null(repository.Get("C6:9B:76:67:10:0B"));
+        Assert.NotNull(repository.Get("3A:F6:E9:E1:17:2A"));
+
+        await using var scope = host.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<LannyDbContext>();
+        Assert.False(await db.Devices.AnyAsync(d => d.MacAddress == "C6:9B:76:67:10:0B"));
+        Assert.True(await db.Devices.AnyAsync(d => d.MacAddress == "3A:F6:E9:E1:17:2A"));
+    }
+
+    [Fact]
+    public async Task UpsertAsync_WhenOlderMacUsesGenericHostname_DoesNotDeleteHostnamePairing()
+    {
+        await using var host = await SqliteTestHost.CreateAsync();
+        var repository = host.Services.GetRequiredService<DeviceRepository>();
+        var firstSeen = new DateTimeOffset(2026, 5, 1, 8, 0, 0, TimeSpan.Zero);
+
+        await repository.UpsertAsync(new Device
+        {
+            MacAddress = "00:00:00:00:00:01",
+            IpAddress = "192.168.2.10",
+            Hostname = "localhost",
+            DiscoveryMethod = "ARP",
+            LastSeen = firstSeen,
+        });
+
+        await repository.UpsertAsync(new Device
+        {
+            MacAddress = "00:00:00:00:00:02",
+            IpAddress = "192.168.2.11",
+            Hostname = "localhost",
+            DiscoveryMethod = "ARP",
+            LastSeen = firstSeen.AddHours(1),
+        });
+
+        Assert.NotNull(repository.Get("00:00:00:00:00:01"));
+        Assert.NotNull(repository.Get("00:00:00:00:00:02"));
+    }
+
+    [Fact]
+    public async Task UpsertAsync_WhenExistingHostnamePairingIsNewer_DoesNotDeleteIt()
+    {
+        await using var host = await SqliteTestHost.CreateAsync();
+        var repository = host.Services.GetRequiredService<DeviceRepository>();
+        var firstSeen = new DateTimeOffset(2026, 5, 1, 8, 0, 0, TimeSpan.Zero);
+
+        await repository.UpsertAsync(new Device
+        {
+            MacAddress = "00:00:00:00:00:03",
+            IpAddress = "192.168.2.12",
+            Hostname = "shared-name",
+            DiscoveryMethod = "ARP",
+            LastSeen = firstSeen.AddHours(1),
+        });
+
+        await repository.UpsertAsync(new Device
+        {
+            MacAddress = "00:00:00:00:00:04",
+            IpAddress = "192.168.2.13",
+            Hostname = "shared-name",
+            DiscoveryMethod = "DHCP",
+            LastSeen = firstSeen,
+        });
+
+        Assert.NotNull(repository.Get("00:00:00:00:00:03"));
+        Assert.NotNull(repository.Get("00:00:00:00:00:04"));
+    }
+
+    [Fact]
     public async Task LoadFromDatabaseAsync_LoadsPersistedDevicesIntoCache()
     {
         await using var host = await SqliteTestHost.CreateAsync();

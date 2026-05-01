@@ -152,7 +152,19 @@ public class DeviceRepository
             existing = device;
         }
 
-        await PersistAsync(existing, cancellationToken);
+        var supersededKeys = FindSupersededHostnamePairings(existing);
+        await PersistAsync(existing, supersededKeys, cancellationToken);
+        foreach (var supersededKey in supersededKeys)
+            _cache.TryRemove(supersededKey, out _);
+
+        if (supersededKeys.Count > 0)
+        {
+            _logger.LogInformation(
+                "Deleted {Count} older hostname pairing(s) for {Hostname}",
+                supersededKeys.Count,
+                existing.Hostname);
+        }
+
         return existing;
     }
 
@@ -180,7 +192,7 @@ public class DeviceRepository
         if (observation.LastSeen >= existing.LastSeen)
             existing.IsOnline = true;
 
-        await PersistAsync(existing, cancellationToken);
+        await PersistAsync(existing, [], cancellationToken);
         return true;
     }
 
@@ -243,7 +255,15 @@ public class DeviceRepository
             cancellationToken);
     }
 
-    private async Task PersistAsync(Device device, CancellationToken cancellationToken)
+    private List<string> FindSupersededHostnamePairings(Device current)
+    {
+        return _cache
+            .Where(entry => HostNameCorrelationPolicy.IsSupersededBy(entry.Value, current))
+            .Select(entry => entry.Key)
+            .ToList();
+    }
+
+    private async Task PersistAsync(Device device, IReadOnlyCollection<string> supersededKeys, CancellationToken cancellationToken)
     {
         await SqliteBusyRetryPolicy.ExecuteAsync(
             async token =>
@@ -256,6 +276,14 @@ public class DeviceRepository
                     db.Devices.Add(device);
                 else
                     db.Entry(tracked).CurrentValues.SetValues(device);
+
+                if (supersededKeys.Count > 0)
+                {
+                    var supersededDevices = await db.Devices
+                        .Where(d => supersededKeys.Contains(d.MacAddress))
+                        .ToListAsync(token);
+                    db.Devices.RemoveRange(supersededDevices);
+                }
 
                 await db.SaveChangesAsync(token);
             },

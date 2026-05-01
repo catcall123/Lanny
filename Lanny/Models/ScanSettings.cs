@@ -19,6 +19,6 @@ public class ScanSettings
     public int FingerprintTimeoutMs { get; set; } = 1500;
     public int FingerprintMaxConcurrency { get; set; } = 8;
     public int OfflineThresholdMinutes { get; set; } = 5;
-    public int OfflineDeviceRetentionHours { get; set; } = 168;
+    public int OfflineDeviceRetentionHours { get; set; } = 24;
     public int StalledScanWarningMinutes { get; set; } = 10;
 }
