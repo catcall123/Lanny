@@ -156,7 +156,8 @@ public class Worker : BackgroundService
             }
         }
 
-        foreach (var device in withMac)
+        var currentObservations = DeviceObservationBatchFilter.RemoveSupersededHostnamePairings(withMac);
+        foreach (var device in currentObservations)
         {
             stoppingToken.ThrowIfCancellationRequested();
             DeviceMetadataEnricher.MergeRelatedObservations(device, withoutMac);
