@@ -130,6 +130,8 @@ dotnet test
 
 ## Container Deployment
 
+Current production deployment details are documented in [`DEPLOYMENT.md`](DEPLOYMENT.md). Use that file for the Podman host, registry, rootful run command, persistent volume, and verification steps.
+
 Build and run with Podman:
 ```bash
 podman compose up -d
