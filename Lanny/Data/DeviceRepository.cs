@@ -102,6 +102,10 @@ public class DeviceRepository
         ArgumentException.ThrowIfNullOrWhiteSpace(device.MacAddress);
 
         device.MacAddress = MacAddress.Normalize(device.MacAddress);
+        var supersedingDevice = FindSupersedingHostnamePairing(device);
+        if (supersedingDevice is not null)
+            return supersedingDevice;
+
         var existing = _cache.GetValueOrDefault(device.MacAddress);
         if (existing is not null)
         {
@@ -261,6 +265,11 @@ public class DeviceRepository
             .Where(entry => HostNameCorrelationPolicy.IsSupersededBy(entry.Value, current))
             .Select(entry => entry.Key)
             .ToList();
+    }
+
+    private Device? FindSupersedingHostnamePairing(Device incoming)
+    {
+        return _cache.Values.FirstOrDefault(existing => HostNameCorrelationPolicy.IsSupersededBy(incoming, existing));
     }
 
     private async Task PersistAsync(Device device, IReadOnlyCollection<string> supersededKeys, CancellationToken cancellationToken)

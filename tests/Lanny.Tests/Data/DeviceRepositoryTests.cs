@@ -172,7 +172,7 @@ public class DeviceRepositoryTests
     }
 
     [Fact]
-    public async Task UpsertAsync_WhenExistingHostnamePairingIsNewer_DoesNotDeleteIt()
+    public async Task UpsertAsync_WhenExistingHostnamePairingIsNewer_KeepsNewerPairing()
     {
         await using var host = await SqliteTestHost.CreateAsync();
         var repository = host.Services.GetRequiredService<DeviceRepository>();
@@ -197,7 +197,41 @@ public class DeviceRepositoryTests
         });
 
         Assert.NotNull(repository.Get("00:00:00:00:00:03"));
-        Assert.NotNull(repository.Get("00:00:00:00:00:04"));
+        Assert.Null(repository.Get("00:00:00:00:00:04"));
+    }
+
+    [Fact]
+    public async Task UpsertAsync_WhenIncomingHostnamePairingIsOlderThanExistingMac_IgnoresStalePairing()
+    {
+        await using var host = await SqliteTestHost.CreateAsync();
+        var repository = host.Services.GetRequiredService<DeviceRepository>();
+        var firstSeen = new DateTimeOffset(2026, 5, 1, 8, 0, 0, TimeSpan.Zero);
+
+        await repository.UpsertAsync(new Device
+        {
+            MacAddress = "3A:F6:E9:E1:17:2A",
+            IpAddress = "192.168.2.47",
+            Hostname = "S24-von-Gisela",
+            DiscoveryMethod = "ARP",
+            LastSeen = firstSeen.AddHours(1),
+        });
+
+        var stored = await repository.UpsertAsync(new Device
+        {
+            MacAddress = "C6:9B:76:67:10:0B",
+            IpAddress = "192.168.2.136",
+            Hostname = "S24-von-Gisela",
+            DiscoveryMethod = "DHCP",
+            LastSeen = firstSeen,
+        });
+
+        Assert.Equal("3A:F6:E9:E1:17:2A", stored.MacAddress);
+        Assert.Null(repository.Get("C6:9B:76:67:10:0B"));
+
+        await using var scope = host.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<LannyDbContext>();
+        Assert.False(await db.Devices.AnyAsync(d => d.MacAddress == "C6:9B:76:67:10:0B"));
+        Assert.True(await db.Devices.AnyAsync(d => d.MacAddress == "3A:F6:E9:E1:17:2A"));
     }
 
     [Fact]
