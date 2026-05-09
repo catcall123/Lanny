@@ -112,7 +112,11 @@ ARP scan found <n> devices
 
 ## Notes
 
-- The restart policy is `unless-stopped`, so the container restarts after process exit and host reboot unless it was manually stopped.
+- The restart policy is `unless-stopped`, so the container restarts after process exit unless it was manually stopped. Surviving a host reboot additionally requires the rootful `podman-restart.service` to be enabled — rootless podman has its own user-level mechanism, but the rootful side does not start it by default. Enable it once on the host:
+
+  ```bash
+  sudo systemctl enable --now podman-restart.service
+  ```
 - Host networking is required for LAN broadcast visibility.
 - `NET_RAW` and `NET_ADMIN` are required for ARP scanning and packet capture.
 - The current MQTT broker is on `192.168.2.42:1883`; credentials are hard-coded in `MqttNetMessagePublisher`.
