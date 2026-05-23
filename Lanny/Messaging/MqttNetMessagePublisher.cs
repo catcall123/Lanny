@@ -32,7 +32,7 @@ public sealed class MqttNetMessagePublisher : IMqttMessagePublisher
             .WithTopic(topic)
             .WithPayload(Encoding.UTF8.GetBytes(payload))
             .WithQualityOfServiceLevel(MQTTnet.Protocol.MqttQualityOfServiceLevel.AtLeastOnce)
-            .WithRetainFlag(false)
+            .WithRetainFlag(true)
             .Build();
 
         await client.PublishAsync(message, cancellationToken);

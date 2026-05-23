@@ -45,6 +45,46 @@ public class MqttDeviceStatusPublisherTests
     }
 
     [Fact]
+    public async Task PublishAsync_WhenHostnameContainsMqttReservedCharacters_PublishesSanitizedTopic()
+    {
+        var broker = new RecordingMqttMessagePublisher();
+        var publisher = new MqttDeviceStatusPublisher(broker, NullLogger<MqttDeviceStatusPublisher>.Instance);
+
+        await publisher.PublishAsync([
+            new Device
+            {
+                MacAddress = "AA:BB:CC:DD:EE:FF",
+                Hostname = "_!@#$%_runestone_!@#$%__33038a60",
+                IsOnline = true,
+            },
+        ]);
+
+        var message = Assert.Single(broker.Messages);
+        Assert.Equal("network_device_update._!@$%_runestone_!@$%__33038a60", message.Topic);
+        Assert.DoesNotContain('#', message.Topic);
+        Assert.DoesNotContain('+', message.Topic);
+        Assert.DoesNotContain('/', message.Topic);
+    }
+
+    [Fact]
+    public async Task PublishAsync_WhenHostnameIsOnlyReservedCharacters_DoesNotPublish()
+    {
+        var broker = new RecordingMqttMessagePublisher();
+        var publisher = new MqttDeviceStatusPublisher(broker, NullLogger<MqttDeviceStatusPublisher>.Instance);
+
+        await publisher.PublishAsync([
+            new Device
+            {
+                MacAddress = "AA:BB:CC:DD:EE:FF",
+                Hostname = "#/+",
+                IsOnline = true,
+            },
+        ]);
+
+        Assert.Empty(broker.Messages);
+    }
+
+    [Fact]
     public async Task PublishAsync_WhenBrokerPublishFails_ContinuesPublishingRemainingDevices()
     {
         var broker = new RecordingMqttMessagePublisher { FailFirstPublish = true };

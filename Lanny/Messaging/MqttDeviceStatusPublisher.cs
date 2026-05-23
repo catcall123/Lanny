@@ -1,3 +1,4 @@
+using System.Text;
 using Lanny.Models;
 
 namespace Lanny.Messaging;
@@ -56,6 +57,25 @@ public sealed class MqttDeviceStatusPublisher : IDeviceStatusPublisher
             return null;
 
         var normalized = hostName!.Trim().TrimEnd('.');
-        return string.IsNullOrWhiteSpace(normalized) ? null : normalized;
+        var sanitized = SanitizeTopicSegment(normalized);
+        return string.IsNullOrWhiteSpace(sanitized) ? null : sanitized;
+    }
+
+    // Strips characters that are illegal in an MQTT publish topic segment: the
+    // wildcards '#'/'+', the level separator '/', and control characters. A
+    // hostname is attacker/peripheral-controlled, so leaving these in throws
+    // MqttProtocolViolationException on every scan cycle (see issue #15).
+    private static string SanitizeTopicSegment(string value)
+    {
+        var builder = new StringBuilder(value.Length);
+        foreach (var c in value)
+        {
+            if (c is '#' or '+' or '/' || char.IsControl(c))
+                continue;
+
+            builder.Append(c);
+        }
+
+        return builder.ToString().Trim();
     }
 }
